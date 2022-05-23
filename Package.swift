@@ -10,10 +10,12 @@ let package = Package(
         .iOS(.v14)
     ],
     products: [
-        .library(name: "Runestone", targets: ["Runestone"])
+        .library(name: "Runestone", targets: ["Runestone"]),
+        .library(name: "RunestoneSwiftUI", targets: ["RunestoneSwiftUI"])
     ],
     targets: [
         .target(name: "Runestone", dependencies: ["TreeSitter"]),
+        .target(name: "RunestoneSwiftUI", dependencies: ["Runestone"]),
         .target(name: "TreeSitter",
                 path: "tree-sitter/lib",
                 exclude: [
