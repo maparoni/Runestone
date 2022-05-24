@@ -1,5 +1,5 @@
 //
-//  SwiftUITextView.swift
+//  TextEditor.swift
 //  
 //
 //  Created by Adrian Schönig on 23/5/2022.
@@ -31,14 +31,21 @@ public struct TextEditor: UIViewRepresentable {
     textView.apply(configuration)
     
     textView.editorDelegate = preparer
-    preparer.configure(text: text, theme: theme, language: language)
+    preparer.configure(text: text, theme: theme, language: language) { state in
+      textView.setState(state)
+    }
     
     return textView
   }
   
   public func updateUIView(_ uiView: UIView, context: Context) {
-    if let state = preparer.state {
-      (uiView as! TextView).setState(state)
+    guard let textView = uiView as? TextView else { return assertionFailure() }
+    
+    // Update from context, such as...
+    switch context.environment.disableAutocorrection {
+    case .none:        textView.autocorrectionType = .default
+    case .some(false): textView.autocorrectionType = .yes
+    case .some(true):  textView.autocorrectionType = .no
     }
   }
 }
@@ -52,11 +59,9 @@ extension TextEditor {
 }
 
 fileprivate class StatePreparer: ObservableObject {
-  @Published var state: TextViewState?
-  
   var text: Binding<String>?
   
-  func configure(text: Binding<String>, theme: Theme, language: TreeSitterLanguage?) {
+  func configure(text: Binding<String>, theme: Theme, language: TreeSitterLanguage?, completion: @escaping (TextViewState) -> Void) {
     self.text = text
     
     DispatchQueue.global(qos: .background).async {
@@ -67,7 +72,7 @@ fileprivate class StatePreparer: ObservableObject {
         state = TextViewState(text: text.wrappedValue, theme: theme)
       }
       DispatchQueue.main.async {
-        self.state = state
+        completion(state)
       }
     }
   }
