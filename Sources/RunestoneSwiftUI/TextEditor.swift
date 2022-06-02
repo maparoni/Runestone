@@ -14,14 +14,17 @@ public struct TextEditor: UIViewRepresentable {
   
   @StateObject private var preparer = StatePreparer()
   
+  @Environment(\.themeFontSize) var themeFontSize
+  
   public let text: Binding<String>
-  public let theme: Theme
+  let actualTheme: OverridingTheme
+  public var theme: Theme { actualTheme.base }
   public let language: TreeSitterLanguage?
   public let configuration: TextView.Configuration
   
   public init(text: Binding<String>, theme: Theme, language: TreeSitterLanguage? = nil, configuration: TextView.Configuration = .init()) {
     self.text = text
-    self.theme = theme
+    self.actualTheme = OverridingTheme(base: theme)
     self.language = language
     self.configuration = configuration
   }
@@ -31,9 +34,12 @@ public struct TextEditor: UIViewRepresentable {
     textView.apply(configuration)
     
     textView.editorDelegate = preparer
-    preparer.configure(text: text, theme: theme, language: language) { state in
+    preparer.configure(text: text, theme: actualTheme, language: language) { state in
       textView.setState(state)
     }
+    
+    // We assume your theme matches the device's mode
+    textView.backgroundColor = .systemBackground
     
     return textView
   }
@@ -46,6 +52,11 @@ public struct TextEditor: UIViewRepresentable {
     case .none:        textView.autocorrectionType = .default
     case .some(false): textView.autocorrectionType = .yes
     case .some(true):  textView.autocorrectionType = .no
+    }
+    
+    if let fontSize = themeFontSize, fontSize != actualTheme.font.pointSize {
+      actualTheme.font = UIFont(descriptor: theme.font.fontDescriptor, size: fontSize)
+      textView.theme = actualTheme
     }
   }
 }
@@ -81,5 +92,24 @@ fileprivate class StatePreparer: ObservableObject {
 extension StatePreparer: Runestone.TextViewDelegate {
   func textViewDidChange(_ textView: TextView) {
     text?.wrappedValue = textView.text
+  }
+}
+
+// MARK: .themeFontSize
+
+public struct ThemeFontSizeKey: EnvironmentKey {
+  public static let defaultValue: Double? = nil
+}
+
+extension EnvironmentValues {
+  public var themeFontSize: Double? {
+    get { self[ThemeFontSizeKey.self] }
+    set { self[ThemeFontSizeKey.self] = newValue }
+  }
+}
+
+extension View {
+  public func themeFontSize(_ size: Double) -> some View {
+    environment(\.themeFontSize, size)
   }
 }
