@@ -1089,6 +1089,7 @@ extension TextInputView {
         applyLineChangesToLayoutManager(lineChangeSet)
         let updatedTextEditResult = TextEditResult(textChange: textChange, lineChangeSet: lineChangeSet)
         layoutIfNeeded()
+        sendSelectionChangedToTextSelectionView()
         delegate?.textInputViewDidChange(self)
         if updatedTextEditResult.didAddOrRemoveLines {
             delegate?.textInputViewDidInvalidateContentSize(self)
