@@ -9,7 +9,9 @@ import UIKit
 
 @_exported import Runestone
 
-extension TextView {
+extension TextEditor {
+  
+  /// Configuration options of the TextEditor
   public struct Configuration {
     public init(isEditable: Bool = true, showLineNumbers: Bool = false) {
       self.isEditable = isEditable
@@ -23,7 +25,7 @@ extension TextView {
 
 
 extension TextView {
-  func apply(_ configuration: Configuration) {
+  func apply(_ configuration: TextEditor.Configuration) {
     showLineNumbers = configuration.showLineNumbers
     isEditable = configuration.isEditable
   }

@@ -20,9 +20,9 @@ public struct TextEditor: UIViewRepresentable {
   let actualTheme: OverridingTheme
   public var theme: Theme { actualTheme.base }
   public let language: TreeSitterLanguage?
-  public let configuration: TextView.Configuration
+  public let configuration: Configuration
   
-  public init(text: Binding<String>, theme: Theme, language: TreeSitterLanguage? = nil, configuration: TextView.Configuration = .init()) {
+  public init(text: Binding<String>, theme: Theme, language: TreeSitterLanguage? = nil, configuration: Configuration = .init()) {
     self.text = text
     self.actualTheme = OverridingTheme(base: theme)
     self.language = language
@@ -62,7 +62,7 @@ public struct TextEditor: UIViewRepresentable {
 }
 
 extension TextEditor {
-  public init(text: String, theme: Theme, language: TreeSitterLanguage? = nil, configuration: TextView.Configuration = .init()) {
+  public init(text: String, theme: Theme, language: TreeSitterLanguage? = nil, configuration: Configuration = .init()) {
     var config = configuration
     config.isEditable = false
     self.init(text: .constant(text), theme: theme, language: language, configuration: config)
@@ -109,6 +109,9 @@ extension EnvironmentValues {
 }
 
 extension View {
+  
+  /// Overrides the font size of the `RunestoneUI.TextEditor`'s theme
+  /// - Parameter size: Text size in points
   public func themeFontSize(_ size: Double) -> some View {
     environment(\.themeFontSize, size)
   }
