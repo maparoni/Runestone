@@ -41,6 +41,10 @@ public struct TextEditor: UIViewRepresentable {
     // We assume your theme matches the device's mode
     textView.backgroundColor = .systemBackground
     
+    textView.insertionPointColor = theme.textColor
+    textView.selectionBarColor = theme.textColor
+    textView.selectionHighlightColor = theme.textColor.withAlphaComponent(0.2)
+    
     return textView
   }
   
