@@ -715,10 +715,10 @@ open class TextView: UIScrollView {
         textInputView.setLanguageMode(languageMode, completion: completion)
     }
 
-    /// Inserts text at the location of the caret.
-    /// - Parameter text: A text to insert.
+    /// Inserts text at the location of the caret or, if no selection or caret is present, at the end of the text.
+    /// - Parameter text: A string to insert.
     open func insertText(_ text: String) {
-        textInputView.insertText(text)
+        textInputView.insertText(text, alwaysInsert: true)
     }
 
     /// Replaces the text that is in the specified range.
