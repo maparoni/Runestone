@@ -12,8 +12,6 @@ import UIKit
 
 public struct TextEditor: UIViewRepresentable {
   
-  @StateObject private var preparer = StatePreparer()
-  
   @Environment(\.themeFontSize) var themeFontSize
   
   public let text: Binding<String>
@@ -28,13 +26,17 @@ public struct TextEditor: UIViewRepresentable {
     self.language = language
     self.configuration = configuration
   }
+  
+  public func makeCoordinator() -> TextEditorCoordinator {
+    .init()
+  }
 
   public func makeUIView(context: Context) -> UIView {
     let textView = TextView()
     textView.apply(configuration)
     
-    textView.editorDelegate = preparer
-    preparer.configure(text: text, theme: actualTheme, language: language) { state in
+    textView.editorDelegate = context.coordinator
+    context.coordinator.configure(text: text, theme: actualTheme, language: language) { state in
       textView.setState(state)
     }
     
@@ -73,7 +75,7 @@ extension TextEditor {
   }
 }
 
-fileprivate class StatePreparer: ObservableObject {
+public class TextEditorCoordinator: ObservableObject {
   var text: Binding<String>?
   
   func configure(text: Binding<String>, theme: Theme, language: TreeSitterLanguage?, completion: @escaping (TextViewState) -> Void) {
@@ -93,8 +95,8 @@ fileprivate class StatePreparer: ObservableObject {
   }
 }
 
-extension StatePreparer: Runestone.TextViewDelegate {
-  func textViewDidChange(_ textView: TextView) {
+extension TextEditorCoordinator: Runestone.TextViewDelegate {
+  public func textViewDidChange(_ textView: TextView) {
     text?.wrappedValue = textView.text
   }
 }
