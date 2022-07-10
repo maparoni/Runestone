@@ -15,6 +15,8 @@ protocol TextInputViewDelegate: AnyObject {
     func textInputViewDidBeginFloatingCursor(_ view: TextInputView)
     func textInputViewDidEndFloatingCursor(_ view: TextInputView)
     func textInputViewDidUpdateMarkedRange(_ view: TextInputView)
+    func textInputView(_ view: TextInputView, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool
+    func textInputView(_ view: TextInputView, replaceTextIn highlightedRange: HighlightedRange)
 }
 
 // swiftlint:disable:next type_body_length
@@ -529,6 +531,7 @@ final class TextInputView: UIView, UITextInput {
         return nil
     }
     private var hasPendingFullLayout = false
+    private let editMenuController = EditMenuController()
 
     // MARK: - Lifecycle
     init(theme: Theme) {
@@ -550,6 +553,8 @@ final class TextInputView: UIView, UITextInput {
         layoutManager.textInputView = self
         layoutManager.theme = theme
         layoutManager.tabWidth = indentController.tabWidth
+        editMenuController.delegate = self
+        editMenuController.setupEditMenu(in: self)
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -648,6 +653,12 @@ final class TextInputView: UIView, UITextInput {
             return true
         } else if action == #selector(replace(_:)) {
             return true
+        } else if action == NSSelectorFromString("replaceTextInSelectedHighlightedRange") {
+            if let selectedRange = selectedRange, let highlightedRange = highlightedRange(for: selectedRange) {
+                return delegate?.textInputView(self, canReplaceTextIn: highlightedRange) ?? false
+            } else {
+                return false
+            }
         } else {
             return super.canPerformAction(action, withSender: sender)
         }
@@ -1284,7 +1295,18 @@ extension TextInputView {
 // MARK: - Ranges and Positions
 extension TextInputView {
     func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
-        return nil
+        // This implementation seems to match the behavior of UITextView.
+        guard let indexedRange = range as? IndexedRange else {
+            return nil
+        }
+        switch direction {
+        case .left, .up:
+            return IndexedPosition(index: indexedRange.range.lowerBound)
+        case .right, .down:
+            return IndexedPosition(index: indexedRange.range.upperBound)
+        @unknown default:
+            return nil
+        }
     }
 
     func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
@@ -1298,11 +1320,29 @@ extension TextInputView {
     }
 
     func characterRange(byExtending position: UITextPosition, in direction: UITextLayoutDirection) -> UITextRange? {
-        return nil
+        // This implementation seems to match the behavior of UITextView.
+        guard let indexedPosition = position as? IndexedPosition else {
+            return nil
+        }
+        switch direction {
+        case .left, .up:
+            let leftIndex = max(indexedPosition.index - 1, 0)
+            return IndexedRange(location: leftIndex, length: indexedPosition.index - leftIndex)
+        case .right, .down:
+            let rightIndex = min(indexedPosition.index + 1, stringView.string.length)
+            return IndexedRange(location: indexedPosition.index, length: rightIndex - indexedPosition.index)
+        @unknown default:
+            return nil
+        }
     }
 
     func characterRange(at point: CGPoint) -> UITextRange? {
-        return nil
+        guard let index = layoutManager.closestIndex(to: point) else {
+            return nil
+        }
+        let cappedIndex = max(index - 1, 0)
+        let range = stringView.string.customRangeOfComposedCharacterSequence(at: cappedIndex)
+        return IndexedRange(range)
     }
 
     func closestPosition(to point: CGPoint) -> UITextPosition? {
@@ -1314,7 +1354,16 @@ extension TextInputView {
     }
 
     func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
-        return nil
+        guard let indexedRange = range as? IndexedRange else {
+            return nil
+        }
+        guard let index = layoutManager.closestIndex(to: point) else {
+            return nil
+        }
+        let minimumIndex = indexedRange.range.lowerBound
+        let maximumIndex = indexedRange.range.upperBound
+        let cappedIndex = min(max(index, minimumIndex), maximumIndex)
+        return IndexedPosition(index: cappedIndex)
     }
 
     func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
@@ -1372,6 +1421,27 @@ extension TextInputView {
     func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {}
 }
 
+// MARK: - UIEditMenuInteraction
+extension TextInputView {
+    func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        return editMenuController.editMenu(for: textRange, suggestedActions: suggestedActions)
+    }
+
+    func presentEditMenuForText(in range: NSRange) {
+        editMenuController.presentEditMenu(from: self, forTextIn: range)
+    }
+
+    @objc private func replaceTextInSelectedHighlightedRange() {
+        if let selectedRange = selectedRange, let highlightedRange = highlightedRange(for: selectedRange) {
+            delegate?.textInputView(self, replaceTextIn: highlightedRange)
+        }
+    }
+
+    private func highlightedRange(for range: NSRange) -> HighlightedRange? {
+        return highlightedRanges.first { $0.range == range }
+    }
+}
+
 // MARK: - TreeSitterLanguageModeDeleage
 extension TextInputView: TreeSitterLanguageModeDelegate {
     func treeSitterLanguageMode(_ languageMode: TreeSitterInternalLanguageMode, bytesAt byteIndex: ByteCount) -> TreeSitterTextProviderResult? {
@@ -1417,11 +1487,15 @@ extension TextInputView: LayoutManagerDelegate {
 // MARK: - IndentControllerDelegate
 extension TextInputView: IndentControllerDelegate {
     func indentController(_ controller: IndentController, shouldInsert text: String, in range: NSRange) {
+        inputDelegate?.selectionWillChange(self)
         replaceText(in: range, with: text)
+        inputDelegate?.selectionDidChange(self)
     }
 
     func indentController(_ controller: IndentController, shouldSelect range: NSRange) {
+        inputDelegate?.selectionWillChange(self)
         selectedRange = range
+        inputDelegate?.selectionDidChange(self)
     }
 }
 
@@ -1441,5 +1515,28 @@ extension TextInputView: LineMovementControllerDelegate {
                                 lineFragmentNodeContainingCharacterAt location: Int,
                                 in line: DocumentLineNode) -> LineFragmentNode {
         return layoutManager.lineFragmentNode(containingCharacterAt: location, in: line)
+    }
+}
+
+// MARK: - EditMenuControllerDelegate
+extension TextInputView: EditMenuControllerDelegate {
+    func editMenuController(_ controller: EditMenuController, caretRectAt location: Int) -> CGRect {
+        return caretRect(at: location)
+    }
+
+    func editMenuControllerShouldReplaceText(_ controller: EditMenuController) {
+        replaceTextInSelectedHighlightedRange()
+    }
+
+    func editMenuController(_ controller: EditMenuController, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool {
+        return delegate?.textInputView(self, canReplaceTextIn: highlightedRange) ?? false
+    }
+
+    func editMenuController(_ controller: EditMenuController, highlightedRangeFor range: NSRange) -> HighlightedRange? {
+        return highlightedRange(for: range)
+    }
+
+    func selectedRange(for controller: EditMenuController) -> NSRange? {
+        return selectedRange
     }
 }

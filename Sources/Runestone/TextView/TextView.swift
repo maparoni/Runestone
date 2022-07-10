@@ -191,7 +191,12 @@ open class TextView: UIScrollView {
     }
     /// The current selection range of the text view as a UITextRange.
     public var selectedTextRange: UITextRange? {
-        return IndexedRange(selectedRange)
+        get {
+            return textInputView.selectedTextRange
+        }
+        set {
+            textInputView.selectedTextRange = newValue
+        }
     }
     /// The custom input accessory view to display when the receiver becomes the first responder.
     override public var inputAccessoryView: UIView? {
@@ -544,6 +549,13 @@ open class TextView: UIScrollView {
     private let textInputView: TextInputView
     private let editableTextInteraction = UITextInteraction(for: .editable)
     private let nonEditableTextInteraction = UITextInteraction(for: .nonEditable)
+#if compiler(>=5.7)
+    @available(iOS 16.0, *)
+    private var editMenuInteraction: UIEditMenuInteraction? {
+        return _editMenuInteraction as? UIEditMenuInteraction
+    }
+    private var _editMenuInteraction: Any?
+#endif
     private let tapGestureRecognizer = QuickTapGestureRecognizer()
     private var _inputAccessoryView: UIView?
     private let _inputAssistantItem = UITextInputAssistantItem()
@@ -569,12 +581,6 @@ open class TextView: UIScrollView {
     private var isInputAccessoryViewEnabled = false
     private let keyboardObserver = KeyboardObserver()
     private let highlightNavigationController = HighlightNavigationController()
-    private var highlightedRangeInSelection: HighlightedRange? {
-        return highlightedRanges.first { highlightedRange in
-            let range = highlightedRange.range
-            return range.lowerBound == selectedRange.lowerBound && range.upperBound == selectedRange.upperBound
-        }
-    }
     // Store a reference to instances of the private type UITextRangeAdjustmentGestureRecognizer in order to track adjustments
     // to the selected text range and scroll the text view when the handles approach the bottom.
     // The approach is based on the one described in Steve Shephard's blog post "Adventures with UITextInteraction".
@@ -609,9 +615,10 @@ open class TextView: UIScrollView {
         installNonEditableInteraction()
         keyboardObserver.delegate = self
         highlightNavigationController.delegate = self
-        setupMenuItems()
     }
 
+    /// The initializer has not been implemented.
+    /// - Parameter coder: Not used.
     public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -660,23 +667,6 @@ open class TextView: UIScrollView {
     /// Updates the custom input and accessory views when the object is the first responder.
     override open func reloadInputViews() {
         textInputView.reloadInputViews()
-    }
-
-    /// Requests the receiving responder to enable or disable the specified command in the user interface.
-    /// - Parameters:
-    ///   - action: A selector that identifies a method associated with a command. For the editing menu, this is one of the editing methods declared by the UIResponderStandardEditActions informal protocol (for example, `copy:`).
-    ///   - sender: The object calling this method. For the editing menu commands, this is the shared UIApplication object. Depending on the context, you can query the sender for information to help you determine whether a command should be enabled.
-    /// - Returns: `true if the command identified by action should be enabled or `false` if it should be disabled. Returning `true` means that your class can handle the command in the current context.
-    override open func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        if action == #selector(replaceTextInSelectedHighlightedRange) {
-            if let highlightedRangeInSelection = highlightedRangeInSelection {
-                return editorDelegate?.textView(self, canReplaceTextIn: highlightedRangeInSelection) ?? false
-            } else {
-                return false
-            }
-        } else {
-            return super.canPerformAction(action, withSender: sender)
-        }
     }
 
     /// Sets the current _state_ of the editor. The state contains the text to be displayed by the editor and
@@ -751,7 +741,7 @@ open class TextView: UIScrollView {
         textInputView.replaceText(in: batchReplaceSet)
     }
 
-    /// Deletes the character just before the cursor
+    /// Deletes a character from the displayed text.
     public func deleteBackward() {
         textInputView.deleteBackward()
     }
@@ -893,50 +883,148 @@ open class TextView: UIScrollView {
     public func redisplayVisibleLines() {
         textInputView.redisplayVisibleLines()
     }
+}
 
-    /// Text position marking the beginning of the text
+// MARK: - UITextInput
+extension TextView {
+    /// The range of currently marked text in a document.
+    public var markedTextRange: UITextRange? {
+        return textInputView.markedTextRange
+    }
+
+    /// The text position for the beginning of a document.
     public var beginningOfDocument: UITextPosition {
-        textInputView.beginningOfDocument
+        return textInputView.beginningOfDocument
     }
 
-    /// Text position marking the end of the text
+    /// The text position for the end of a document.
     public var endOfDocument: UITextPosition {
-        textInputView.endOfDocument
+        return textInputView.endOfDocument
     }
 
-    /// Text position relative from another text position
-    public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
-        textInputView.position(from: position, in: direction, offset: offset)
-    }
-
-    /// Text position from another text position by incrementing the index
-    public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
-        textInputView.position(from: position, offset: offset)
-    }
-
-    /// Closest text position to the provided point
-    public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        textInputView.closestPosition(to: point)
-    }
-
-    /// Translates positions into a text range
+    /// Returns the range between two text positions.
+    /// - Parameters:
+    ///   - fromPosition: An object that represents a location in a document.
+    ///   - toPosition: An object that represents another location in a document.
+    /// - Returns: An object that represents the range between fromPosition and toPosition.
     public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
-        textInputView.textRange(from: fromPosition, to: toPosition)
+        return textInputView.textRange(from: fromPosition, to: toPosition)
     }
 
-    /// Compare text positions
+    /// Returns the text position at a specified offset from another text position.
+    /// - Parameters:
+    ///   - position: A custom UITextPosition object that represents a location in a document.
+    ///   - offset: A character offset from position. It can be a positive or negative value.
+    /// - Returns: A custom UITextPosition object that represents the location in a document that is at the specified offset from position. Returns nil if the computed text position is less than 0 or greater than the length of the backing string.
+    public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
+        return textInputView.position(from: position, offset: offset)
+    }
+
+    /// Returns the text position at a specified offset in a specified direction from another text position.
+    /// - Parameters:
+    ///   - position: A custom UITextPosition object that represents a location in a document.
+    ///   - direction: A UITextLayoutDirection constant that represents the direction of the offset from position.
+    ///   - offset: A character offset from position.
+    /// - Returns: Returns the text position at a specified offset in a specified direction from another text position. Returns nil if the computed text position is less than 0 or greater than the length of the backing string.
+    public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
+        return textInputView.position(from: position, in: direction, offset: offset)
+    }
+
+    /// Returns how one text position compares to another text position.
+    /// - Parameters:
+    ///   - position: A custom object that represents a location within a document.
+    ///   - other: A custom object that represents another location within a document.
+    /// - Returns: A value that indicates whether the two text positions are identical or whether one is before the other.
     public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
-        textInputView.compare(position, to: other)
+        return textInputView.compare(position, to: other)
     }
 
-    /// Offset between two text positions
+    /// Returns the number of UTF-16 characters between one text position and another text position.
+    /// - Parameters:
+    ///   - from: A custom object that represents a location within a document.
+    ///   - toPosition: A custom object that represents another location within document.
+    /// - Returns: The number of UTF-16 characters between fromPosition and toPosition.
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
-        textInputView.offset(from: from, to: toPosition)
+        return textInputView.offset(from: from, to: toPosition)
     }
 
-    /// Translates text ranges into selection rects
+    /// An input tokenizer that provides information about the granularity of text units.
+    public var tokenizer: UITextInputTokenizer {
+        return textInputView.tokenizer
+    }
+
+    /// Returns the text position that is at the farthest extent in a specified layout direction within a range of text.
+    /// - Parameters:
+    ///   - range: A text-range object that demarcates a range of text in a document.
+    ///   - direction: A constant that indicates a direction of layout (right, left, up, down).
+    /// - Returns: A text-position object that identifies a location in the visible text.
+    public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
+        return textInputView.position(within: range, farthestIn: direction)
+    }
+
+    /// Returns a text range from a specified text position to its farthest extent in a certain direction of layout.
+    /// - Parameters:
+    ///   - position: A text-position object that identifies a location in a document.
+    ///   - direction: A constant that indicates a direction of layout (right, left, up, down).
+    /// - Returns: A text-range object that represents the distance from position to the farthest extent in direction.
+    public func characterRange(byExtending position: UITextPosition, in direction: UITextLayoutDirection) -> UITextRange? {
+        return textInputView.characterRange(byExtending: position, in: direction)
+    }
+
+    /// Returns the first rectangle that encloses a range of text in a document.
+    /// - Parameter range: An object that represents a range of text in a document.
+    /// - Returns: The first rectangle in a range of text. You might use this rectangle to draw a correction rectangle. The “first” in the name refers the rectangle enclosing the first line when the range encompasses multiple lines of text.
+    public func firstRect(for range: UITextRange) -> CGRect {
+        return textInputView.firstRect(for: range)
+    }
+
+    /// Returns a rectangle to draw the caret at a specified insertion point.
+    /// - Parameter position: An object that identifies a location in a text input area.
+    /// - Returns: A rectangle that defines the area for drawing the caret.
+    public func caretRect(for position: UITextPosition) -> CGRect {
+        return textInputView.caretRect(for: position)
+    }
+
+    /// Returns an array of selection rects corresponding to the range of text.
+    /// - Parameter range: An object representing a range in a document’s text.
+    /// - Returns: An array of UITextSelectionRect objects that encompass the selection.
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        textInputView.selectionRects(for: range)
+        return textInputView.selectionRects(for: range)
+    }
+
+    /// Returns the position in a document that is closest to a specified point.
+    /// - Parameter point: A point in the view that is drawing a document’s text.
+    /// - Returns: An object locating a position in a document that is closest to point.
+    public func closestPosition(to point: CGPoint) -> UITextPosition? {
+        return textInputView.closestPosition(to: point)
+    }
+
+    /// Returns the position in a document that is closest to a specified point in a specified range.
+    /// - Parameters:
+    ///   - point: A point in the view that is drawing a document’s text.
+    ///   - range: An object representing a range in a document’s text.
+    /// - Returns: An object representing the character position in range that is closest to point.
+    public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
+        return textInputView.closestPosition(to: point, within: range)
+    }
+
+    /// Returns the character or range of characters that is at a specified point in a document.
+    /// - Parameter point: A point in the view that is drawing a document’s text.
+    /// - Returns: An object representing a range that encloses a character (or characters) at point.
+    public func characterRange(at point: CGPoint) -> UITextRange? {
+        return textInputView.characterRange(at: point)
+    }
+
+    /// Returns the text in the specified range.
+    /// - Parameter range: A range of text in a document.
+    /// - Returns: A substring of a document that falls within the specified range.
+    public func text(in range: UITextRange) -> String? {
+        return textInputView.text(in: range)
+    }
+
+    /// A Boolean value that indicates whether the text-entry object has any text.
+    public var hasText: Bool {
+        return textInputView.hasText
     }
 }
 
@@ -1095,26 +1183,6 @@ private extension TextView {
             }
         }
     }
-
-    private func showMenuForText(in range: NSRange) {
-        let startCaretRect = textInputView.caretRect(at: range.location)
-        let endCaretRect = textInputView.caretRect(at: range.location + range.length)
-        let menuWidth = min(endCaretRect.maxX - startCaretRect.minX, frame.width)
-        let menuRect = CGRect(x: startCaretRect.minX, y: startCaretRect.minY, width: menuWidth, height: startCaretRect.height)
-        UIMenuController.shared.showMenu(from: self, rect: menuRect)
-    }
-
-    private func setupMenuItems() {
-        UIMenuController.shared.menuItems = [
-            UIMenuItem(title: L10n.Menu.ItemTitle.replace, action: #selector(replaceTextInSelectedHighlightedRange))
-        ]
-    }
-
-    @objc private func replaceTextInSelectedHighlightedRange() {
-        if let highlightedRangeInSelection = highlightedRangeInSelection {
-            editorDelegate?.textView(self, replaceTextIn: highlightedRangeInSelection)
-        }
-    }
 }
 
 // MARK: - TextInputViewDelegate
@@ -1126,7 +1194,7 @@ extension TextView: TextInputViewDelegate {
         isEditing = !willBeginEditingFromNonEditableTextInteraction
         // If a developer is programmatically calling becomeFirstresponder() then we might not have a selected range.
         // We set the selectedRange instead of the selectedTextRange to avoid invoking any delegates.
-        if textInputView.selectedRange == nil {
+        if textInputView.selectedRange == nil && !willBeginEditingFromNonEditableTextInteraction {
             textInputView.selectedRange = NSRange(location: 0, length: 0)
         }
         // Ensure selection is laid out without animation.
@@ -1218,6 +1286,14 @@ extension TextView: TextInputViewDelegate {
             }
         }
     }
+
+    func textInputView(_ view: TextInputView, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool {
+        return editorDelegate?.textView(self, canReplaceTextIn: highlightedRange) ?? false
+    }
+
+    func textInputView(_ view: TextInputView, replaceTextIn highlightedRange: HighlightedRange) {
+        editorDelegate?.textView(self, replaceTextIn: highlightedRange)
+    }
 }
 
 // MARK: - HighlightNavigationControllerDelegate
@@ -1230,7 +1306,7 @@ extension TextView: HighlightNavigationControllerDelegate {
         textInputView.layoutLines(toLocation: range.upperBound)
         scroll(to: range.location)
         textInputView.selectedRange = range
-        showMenuForText(in: range)
+        textInputView.presentEditMenuForText(in: range)
         switch highlightNavigationRange.loopMode {
         case .previousGoesToLast:
             editorDelegate?.textViewDidLoopToLastHighlightedRange(self)
