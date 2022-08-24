@@ -130,6 +130,14 @@ final class LayoutManager {
             }
         }
     }
+    var lineBreakMode: LineBreakMode = .byWordWrapping {
+         didSet {
+             if lineBreakMode != oldValue {
+                 invalidateContentSize()
+                 invalidateLines()
+             }
+         }
+     }
     /// Leading padding inside the gutter.
     var gutterLeadingPadding: CGFloat = 3 {
         didSet {
@@ -384,6 +392,7 @@ final class LayoutManager {
             lineController.lineFragmentHeightMultiplier = lineHeightMultiplier
             lineController.tabWidth = tabWidth
             lineController.kern = kern
+            lineController.lineBreakMode = lineBreakMode
             lineController.invalidateSyntaxHighlighting()
         }
     }
@@ -403,10 +412,13 @@ final class LayoutManager {
     func redisplayLines(withIDs lineIDs: Set<DocumentLineNodeID>) {
         for lineID in lineIDs {
             if let lineController = lineControllers[lineID] {
-                let lineYPosition = lineController.line.yPosition
-                let lineLocalViewport = CGRect(x: 0, y: lineYPosition, width: insetViewport.width, height: insetViewport.maxY - lineYPosition)
                 lineController.invalidateEverything()
-                lineController.prepareToDisplayString(in: lineLocalViewport, syntaxHighlightAsynchronously: false)
+                // Only display the line if it's currently visible on the screen. Otherwise it's enough to invalidate it and redisplay it later.
+                if visibleLineIDs.contains(lineID) {
+                    let lineYPosition = lineController.line.yPosition
+                    let lineLocalViewport = CGRect(x: 0, y: lineYPosition, width: insetViewport.width, height: insetViewport.maxY - lineYPosition)
+                    lineController.prepareToDisplayString(in: lineLocalViewport, syntaxHighlightAsynchronously: false)
+                }
             }
         }
     }
@@ -414,17 +426,6 @@ final class LayoutManager {
     func setNeedsDisplayOnLines() {
         for (_, lineController) in lineControllers {
             lineController.setNeedsDisplayOnLineFragmentViews()
-        }
-    }
-
-    func typesetLines(toLocation location: Int) {
-        let range = NSRange(location: 0, length: location)
-        let lines = lineManager.lines(in: range)
-        for line in lines {
-            let lineController = lineController(for: line)
-            let lineLocation = line.location
-            let endTypesettingLocation = min(lineLocation + line.data.length, location) - lineLocation
-            lineController.prepareToDisplayString(toLocation: endTypesettingLocation, syntaxHighlightAsynchronously: true)
         }
     }
 
@@ -654,6 +655,9 @@ extension LayoutManager {
             } else {
                 nextLine = nil
             }
+        }
+        if _textContentHeight == nil || _textContentWidth == nil {
+            delegate?.layoutManagerDidInvalidateContentSize(self)
         }
     }
 
@@ -903,6 +907,7 @@ extension LayoutManager {
             lineController.lineFragmentHeightMultiplier = lineHeightMultiplier
             lineController.tabWidth = tabWidth
             lineController.theme = theme
+            lineController.lineBreakMode = lineBreakMode
             lineControllers[line.id] = lineController
             return lineController
         }

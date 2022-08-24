@@ -430,6 +430,15 @@ open class TextView: UIScrollView {
             textInputView.isLineWrappingEnabled = newValue
         }
     }
+    /// Line break mode for text view. The default value is .byWordWrapping meaning that wrapping occurs on word boundaries.
+    public var lineBreakMode: LineBreakMode {
+        get {
+            return textInputView.lineBreakMode
+        }
+        set {
+            textInputView.lineBreakMode = newValue
+        }
+    }
     /// Width of the gutter.
     public var gutterWidth: CGFloat {
         return textInputView.gutterWidth
@@ -545,6 +554,22 @@ open class TextView: UIScrollView {
             textInputView.lineEndings = newValue
         }
     }
+#if compiler(>=5.7)
+    /// A boolean value that enables a text view’s built-in find interaction.
+    @available(iOS 16, *)
+    public var isFindInteractionEnabled: Bool {
+        get {
+            return textSearchingHelper.isFindInteractionEnabled
+        }
+        set {
+            textSearchingHelper.isFindInteractionEnabled = newValue
+        }
+    }
+    @available(iOS 16, *)
+    public var findInteraction: UIFindInteraction? {
+        return textSearchingHelper.findInteraction
+    }
+#endif
 
     private let textInputView: TextInputView
     private let editableTextInteraction = UITextInteraction(for: .editable)
@@ -559,7 +584,7 @@ open class TextView: UIScrollView {
     private let tapGestureRecognizer = QuickTapGestureRecognizer()
     private var _inputAccessoryView: UIView?
     private let _inputAssistantItem = UITextInputAssistantItem()
-    private var willBeginEditingFromNonEditableTextInteraction = false
+    private var isPerformingNonEditableTextInteraction = false
     private var delegateAllowsEditingToBegin: Bool {
         guard isEditable else {
             return false
@@ -581,6 +606,7 @@ open class TextView: UIScrollView {
     private var isInputAccessoryViewEnabled = false
     private let keyboardObserver = KeyboardObserver()
     private let highlightNavigationController = HighlightNavigationController()
+    private var textSearchingHelper = UITextSearchingHelper()
     // Store a reference to instances of the private type UITextRangeAdjustmentGestureRecognizer in order to track adjustments
     // to the selected text range and scroll the text view when the handles approach the bottom.
     // The approach is based on the one described in Steve Shephard's blog post "Adventures with UITextInteraction".
@@ -615,6 +641,7 @@ open class TextView: UIScrollView {
         installNonEditableInteraction()
         keyboardObserver.delegate = self
         highlightNavigationController.delegate = self
+        textSearchingHelper.textView = self
     }
 
     /// The initializer has not been implemented.
@@ -644,8 +671,6 @@ open class TextView: UIScrollView {
     @discardableResult
     override open func becomeFirstResponder() -> Bool {
         if !isEditing && delegateAllowsEditingToBegin {
-            // Reset willBeginEditingFromNonEditableTextInteraction to support calling becomeFirstResponder() programmatically.
-            willBeginEditingFromNonEditableTextInteraction = false
             _ = textInputView.resignFirstResponder()
             _ = textInputView.becomeFirstResponder()
             return true
@@ -696,6 +721,21 @@ open class TextView: UIScrollView {
         }
     }
 
+    /// Returns the character location at the specified row and column.
+    /// - Parameter textLocation: The row and column in the text.
+    /// - Returns: The location if the input row and column could be found in the text, otherwise nil.
+    public func location(at textLocation: TextLocation) -> Int? {
+        let lineIndex = textLocation.lineNumber
+        guard lineIndex >= 0 && lineIndex < textInputView.lineManager.lineCount else {
+            return nil
+        }
+        let line = textInputView.lineManager.line(atRow: lineIndex)
+        guard textLocation.column >= 0 && textLocation.column <= line.data.totalLength else {
+            return nil
+        }
+        return line.location + textLocation.column
+    }
+
     /// Sets the language mode on a background thread.
     ///
     /// - Parameters:
@@ -708,9 +748,9 @@ open class TextView: UIScrollView {
     /// Inserts text at the location of the caret or, if no selection or caret is present, at the end of the text.
     /// - Parameter text: A string to insert.
     open func insertText(_ text: String) {
+        textInputView.inputDelegate?.selectionWillChange(textInputView)
         textInputView.insertText(text)
-        // Called in TextView since we only want to force the text selection view to update when editing text programmatically.
-        textInputView.sendSelectionChangedToTextSelectionView()
+        textInputView.inputDelegate?.selectionDidChange(textInputView)
     }
 
     /// Replaces the text that is in the specified range.
@@ -718,9 +758,9 @@ open class TextView: UIScrollView {
     ///   - range: A range of text in the document.
     ///   - text: A string to replace the text in range.
     open func replace(_ range: UITextRange, withText text: String) {
+        textInputView.inputDelegate?.selectionWillChange(textInputView)
         textInputView.replace(range, withText: text)
-        // Called in TextView since we only want to force the text selection view to update when editing text programmatically.
-        textInputView.sendSelectionChangedToTextSelectionView()
+        textInputView.inputDelegate?.selectionDidChange(textInputView)
     }
 
     /// Replaces the text that is in the specified range.
@@ -728,10 +768,10 @@ open class TextView: UIScrollView {
     ///   - range: A range of text in the document.
     ///   - text: A string to replace the text in range.
     public func replace(_ range: NSRange, withText text: String) {
+        textInputView.inputDelegate?.selectionWillChange(textInputView)
         let indexedRange = IndexedRange(range)
         textInputView.replace(indexedRange, withText: text)
-        // Called in TextView since we only want to force the text selection view to update when editing text programmatically.
-        textInputView.sendSelectionChangedToTextSelectionView()
+        textInputView.inputDelegate?.selectionDidChange(textInputView)
     }
 
     /// Replaces the text in the specified matches.
@@ -820,6 +860,7 @@ open class TextView: UIScrollView {
         resignFirstResponder()
         becomeFirstResponder()
         let line = textInputView.lineManager.line(atRow: lineIndex)
+        textInputView.layoutLines(toLocation: line.location)
         scroll(to: line.location)
         layoutIfNeeded()
         switch selection {
@@ -1028,13 +1069,29 @@ extension TextView {
     }
 }
 
+extension TextView {
+    func scroll(to range: NSRange) {
+        let upperCaretRect = textInputView.caretRect(at: range.upperBound)
+        let lowerContentOffset = contentOffset(forScrollingToLocation: range.lowerBound)
+        let viewportWidth = frame.width - gutterWidth
+        let distanceOutOfScreen = upperCaretRect.minX - (lowerContentOffset.x + viewportWidth)
+        if distanceOutOfScreen > 0 {
+            // Scroll to reveal the entire range on the X-axis.
+            let offsetX = lowerContentOffset.x + min(distanceOutOfScreen, viewportWidth)
+            let cappedOffsetX = min(max(offsetX, minimumContentOffset.x), maximumContentOffset.x)
+            contentOffset = CGPoint(x: cappedOffsetX, y: lowerContentOffset.y)
+        } else {
+            contentOffset = lowerContentOffset
+        }
+    }
+}
+
 private extension TextView {
     @objc private func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
         guard isSelectable else {
             return
         }
         if gestureRecognizer.state == .ended {
-            willBeginEditingFromNonEditableTextInteraction = false
             let point = gestureRecognizer.location(in: textInputView)
             let oldSelectedRange = textInputView.selectedRange
             textInputView.moveCaret(to: point)
@@ -1132,6 +1189,13 @@ private extension TextView {
     }
 
     private func scroll(to location: Int) {
+        let newContentOffset = contentOffset(forScrollingToLocation: location)
+        if newContentOffset != contentOffset {
+            setContentOffset(newContentOffset, animated: false)
+        }
+    }
+
+    private func contentOffset(forScrollingToLocation location: Int) -> CGPoint {
         let caretRect = textInputView.caretRect(at: location)
         let viewportMinX = contentOffset.x + automaticScrollInset.left + gutterWidth
         let viewportMinY = contentOffset.y + automaticScrollInset.top
@@ -1159,10 +1223,7 @@ private extension TextView {
         }
         let cappedXOffset = min(max(preferredContentOffset.x, minimumContentOffset.x), maximumContentOffset.x)
         let cappedYOffset = min(max(preferredContentOffset.y, minimumContentOffset.y), maximumContentOffset.y)
-        let cappedContentOffset = CGPoint(x: cappedXOffset, y: cappedYOffset)
-        if cappedContentOffset != contentOffset {
-            setContentOffset(cappedContentOffset, animated: false)
-        }
+        return CGPoint(x: cappedXOffset, y: cappedYOffset)
     }
 
     private func installEditableInteraction() {
@@ -1191,10 +1252,10 @@ extension TextView: TextInputViewDelegate {
         guard isEditable else {
             return
         }
-        isEditing = !willBeginEditingFromNonEditableTextInteraction
+        isEditing = !isPerformingNonEditableTextInteraction
         // If a developer is programmatically calling becomeFirstresponder() then we might not have a selected range.
         // We set the selectedRange instead of the selectedTextRange to avoid invoking any delegates.
-        if textInputView.selectedRange == nil && !willBeginEditingFromNonEditableTextInteraction {
+        if textInputView.selectedRange == nil && !isPerformingNonEditableTextInteraction {
             textInputView.selectedRange = NSRange(location: 0, length: 0)
         }
         // Ensure selection is laid out without animation.
@@ -1202,13 +1263,13 @@ extension TextView: TextInputViewDelegate {
             textInputView.layoutIfNeeded()
         }
         // The editable interaction must be installed early in the -becomeFirstResponder() call
-        if !willBeginEditingFromNonEditableTextInteraction {
+        if !isPerformingNonEditableTextInteraction {
             installEditableInteraction()
         }
     }
 
     func textInputViewDidBeginEditing(_ view: TextInputView) {
-        if !willBeginEditingFromNonEditableTextInteraction {
+        if !isPerformingNonEditableTextInteraction {
             editorDelegate?.textViewDidBeginEditing(self)
         }
     }
@@ -1304,7 +1365,7 @@ extension TextView: HighlightNavigationControllerDelegate {
         _ = textInputView.becomeFirstResponder()
         // Layout lines up until the location of the range so we can scroll to it immediately after.
         textInputView.layoutLines(toLocation: range.upperBound)
-        scroll(to: range.location)
+        scroll(to: range)
         textInputView.selectedRange = range
         textInputView.presentEditMenuForText(in: range)
         switch highlightNavigationRange.loopMode {
@@ -1331,7 +1392,7 @@ extension TextView: UIGestureRecognizerDelegate {
         if gestureRecognizer === tapGestureRecognizer {
             return !isEditing && !isDragging && !isDecelerating && delegateAllowsEditingToBegin
         } else {
-            return true
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
     }
 
@@ -1353,11 +1414,12 @@ extension TextView: KeyboardObserverDelegate {
                           keyboardWillShowWithHeight keyboardHeight: CGFloat,
                           animation: KeyboardObserver.Animation?) {
         if isAutomaticScrollEnabled, let newRange = textInputView.selectedRange, newRange.length == 0 {
-            scroll(to: newRange.location)
+            scroll(to: newRange)
         }
     }
 }
 
+// MARK: - UITextInteractionDelegate
 extension TextView: UITextInteractionDelegate {
     public func interactionShouldBegin(_ interaction: UITextInteraction, at point: CGPoint) -> Bool {
         if interaction.textInteractionMode == .editable {
@@ -1375,7 +1437,13 @@ extension TextView: UITextInteractionDelegate {
             // When long-pressing our instance of UITextInput, the UITextInteraction will make the text input first responder.
             // In this case the user wants to select text in the text view but not start editing, so we set a flag that tells us
             // that we should not install editable text interaction in this case.
-            willBeginEditingFromNonEditableTextInteraction = true
+            isPerformingNonEditableTextInteraction = true
+        }
+    }
+
+    public func interactionDidEnd(_ interaction: UITextInteraction) {
+        if interaction.textInteractionMode == .nonEditable {
+            isPerformingNonEditableTextInteraction = false
         }
     }
 }

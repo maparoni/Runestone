@@ -16,6 +16,14 @@ final class MainViewController: UIViewController {
         toolsView = KeyboardToolsView(textView: contentView.textView)
         super.init(nibName: nil, bundle: nil)
         title = "Example"
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(keyboardWillChangeFrame(_:)),
+                                               name: UIApplication.keyboardWillChangeFrameNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(keyboardWillHide(_:)),
+                                               name: UIApplication.keyboardWillHideNotification,
+                                               object: nil)
     }
 
     required init?(coder: NSCoder) {
@@ -28,6 +36,11 @@ final class MainViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+#if compiler(>=5.7)
+        if #available(iOS 16, *) {
+            contentView.textView.isFindInteractionEnabled = true
+        }
+#endif
         contentView.textView.inputAccessoryView = toolsView
         setupMenuButton()
         setupTextView()
@@ -36,6 +49,18 @@ final class MainViewController: UIViewController {
 }
 
 private extension MainViewController {
+#if compiler(>=5.7)
+    @available(iOS 16, *)
+    @objc private func presentFind() {
+        contentView.textView.findInteraction?.presentFindNavigator(showingReplace: false)
+    }
+
+    @available(iOS 16, *)
+    @objc private func presentFindAndReplace() {
+        contentView.textView.findInteraction?.presentFindNavigator(showingReplace: true)
+    }
+#endif
+
     private func setupTextView() {
         let text = UserDefaults.standard.text ?? ""
         let state = TextViewState(text: text, theme: TomorrowTheme(), language: .javaScript)
@@ -51,55 +76,105 @@ private extension MainViewController {
     }
 
     private func setupMenuButton() {
-        let settings = UserDefaults.standard
-        let settingsMenu = UIMenu(options: .displayInline, children: [
-            UIAction(title: "Show Line Numbers", state: settings.showLineNumbers ? .on : .off) { [weak self] _ in
-                settings.showLineNumbers.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
-            },
-            UIAction(title: "Show Invisible Characters", state: settings.showInvisibleCharacters ? .on : .off) { [weak self] _ in
-                settings.showInvisibleCharacters.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
-            },
-            UIAction(title: "Wrap Lines", state: settings.wrapLines ? .on : .off) { [weak self] _ in
-                settings.wrapLines.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
-            },
-            UIAction(title: "Highlight Selected Line", state: settings.highlightSelectedLine ? .on : .off) { [weak self] _ in
-                settings.highlightSelectedLine.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
-            },
-            UIAction(title: "Show Page Guide", state: settings.showPageGuide ? .on : .off) { [weak self] _ in
-                settings.showPageGuide.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
-            },
-            UIAction(title: "Allow Editing", state: settings.isEditable ? .on : .off) { [weak self] _ in
-                settings.isEditable.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
-            },
-            UIAction(title: "Allow Selection", state: settings.isSelectable ? .on : .off) { [weak self] _ in
-                settings.isSelectable.toggle()
-                self?.updateTextViewSettings()
-                self?.setupMenuButton()
+        let menu = UIMenu(children: [makeFeaturesMenu(), makeSettingsMenu(), makeThemeMenu()])
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: menu)
+    }
+
+    private func makeFeaturesMenu() -> UIMenu {
+        var children: [UIMenuElement] = []
+#if compiler(>=5.7)
+        if #available(iOS 16, *) {
+            children += [
+                UIMenu(options: .displayInline, children: [
+                    UIAction(title: "Find") { [weak self] _ in
+                        self?.presentFind()
+                    },
+                    UIAction(title: "Find and Replace") { [weak self] _ in
+                        self?.presentFindAndReplace()
+                    }
+                ])
+            ]
+        }
+#endif
+        children += [
+            UIAction(title: "Go to Line") { [weak self] _ in
+                self?.presentGoToLineAlert()
             }
+        ]
+        return UIMenu(options: .displayInline, children: children)
+    }
+
+    private func makeSettingsMenu() -> UIMenu {
+        let settings = UserDefaults.standard
+        return UIMenu(options: .displayInline, children: [
+            UIMenu(options: .displayInline, children: [
+                UIAction(title: "Show Line Numbers", state: settings.showLineNumbers ? .on : .off) { [weak self] _ in
+                    settings.showLineNumbers.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                },
+                UIAction(title: "Show Page Guide", state: settings.showPageGuide ? .on : .off) { [weak self] _ in
+                    settings.showPageGuide.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                },
+                UIAction(title: "Show Invisible Characters", state: settings.showInvisibleCharacters ? .on : .off) { [weak self] _ in
+                    settings.showInvisibleCharacters.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                },
+                UIAction(title: "Wrap Lines", state: settings.wrapLines ? .on : .off) { [weak self] _ in
+                    settings.wrapLines.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                },
+                UIAction(title: "Highlight Selected Line", state: settings.highlightSelectedLine ? .on : .off) { [weak self] _ in
+                    settings.highlightSelectedLine.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                }
+            ]),
+            UIMenu(options: .displayInline, children: [
+                UIAction(title: "Allow Editing", state: settings.isEditable ? .on : .off) { [weak self] _ in
+                    settings.isEditable.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                },
+                UIAction(title: "Allow Selection", state: settings.isSelectable ? .on : .off) { [weak self] _ in
+                    settings.isSelectable.toggle()
+                    self?.updateTextViewSettings()
+                    self?.setupMenuButton()
+                }
+            ])
         ])
-        let miscMenu = UIMenu(options: .displayInline, children: [
+    }
+
+    private func makeThemeMenu() -> UIMenu {
+        return UIMenu(options: .displayInline, children: [
             UIAction(title: "Theme") { [weak self] _ in
                 self?.presentThemePicker()
             }
         ])
-        let menu = UIMenu(children: [settingsMenu, miscMenu])
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), primaryAction: nil, menu: menu)
     }
-}
 
-private extension MainViewController {
+    private func presentGoToLineAlert() {
+        let alertController = UIAlertController(title: "Go To Line", message: nil, preferredStyle: .alert)
+        alertController.addTextField { textField in
+            textField.placeholder = "42"
+            textField.keyboardType = .numberPad
+        }
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel)
+        let doneAction = UIAlertAction(title: "Go", style: .default) { [weak self, weak alertController] _ in
+            if let textField = alertController?.textFields?.first, let text = textField.text, !text.isEmpty, let lineNumber = Int(text) {
+                let lineIndex = lineNumber - 1
+                self?.contentView.textView.goToLine(lineIndex, select: .line)
+            }
+        }
+        alertController.addAction(cancelAction)
+        alertController.addAction(doneAction)
+        present(alertController, animated: true)
+    }
+
     private func presentThemePicker() {
         let theme = UserDefaults.standard.theme
         let themePickerViewController = ThemePickerViewController(selectedTheme: theme)
@@ -107,11 +182,33 @@ private extension MainViewController {
         let navigationController = UINavigationController(rootViewController: themePickerViewController)
         present(navigationController, animated: true)
     }
+
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        updateInsets(keyboardHeight: 0)
+    }
+
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+            let keyboardHeight = max(frame.height - view.safeAreaInsets.bottom, 0)
+            updateInsets(keyboardHeight: keyboardHeight)
+        }
+    }
+
+    private func updateInsets(keyboardHeight: CGFloat) {
+        let textView = contentView.textView
+        textView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
+        textView.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
+        textView.automaticScrollInset = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
+    }
 }
 
 extension MainViewController: TextViewDelegate {
     func textViewDidChange(_ textView: TextView) {
         UserDefaults.standard.text = textView.text
+    }
+
+    func textView(_ textView: TextView, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool {
+        return true
     }
 }
 
