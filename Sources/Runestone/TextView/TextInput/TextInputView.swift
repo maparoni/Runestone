@@ -120,15 +120,6 @@ final class TextInputView: UIView, UITextInput {
     override var undoManager: UndoManager? {
         return timedUndoManager
     }
-    override var keyCommands: [UIKeyCommand]? {
-        let goToLineBeginningCommand = UIKeyCommand(input: "a", modifierFlags: .control, action: #selector(goToLineBeginning))
-        let goToLineEndCommand = UIKeyCommand(input: "e", modifierFlags: .control, action: #selector(goToLineEnd))
-        if #available(iOS 15.0, *) {
-            goToLineBeginningCommand.wantsPriorityOverSystemBehavior = true
-            goToLineEndCommand.wantsPriorityOverSystemBehavior = true
-        }
-        return [goToLineBeginningCommand, goToLineEndCommand]
-    }
 
     // MARK: - Appearance
     var theme: Theme {
@@ -568,8 +559,6 @@ final class TextInputView: UIView, UITextInput {
     private var notifyInputDelegateAboutSelectionChangeInLayoutSubviews = false
     private var didCallPositionFromPositionInDirectionWithOffset = false
     private var preserveUndoStackWhenSettingString = false
-    private var placeCaretAtNextLineFragmentForLastCharacter = true
-    private var didPlaceCaretAtNextLineFragmentForLastCharacter = false
 
     // MARK: - Lifecycle
     init(theme: Theme) {
@@ -704,8 +693,6 @@ final class TextInputView: UIView, UITextInput {
             } else {
                 return false
             }
-        } else if action == #selector(goToLineBeginning) || action == #selector(goToLineEnd) {
-            return selectedRange != nil
         } else {
             return super.canPerformAction(action, withSender: sender)
         }
@@ -851,35 +838,6 @@ final class TextInputView: UIView, UITextInput {
 
 // MARK: - Navigation
 private extension TextInputView {
-    @objc private func goToLineBeginning() {
-        guard let selectedRange = selectedRange else {
-            return
-        }
-        guard let location = lineMovementController.locationForGoingToBeginningOfLine(
-            movingFrom: selectedRange.upperBound,
-            treatEndOfLineFragmentAsPreviousLineFragment: !didPlaceCaretAtNextLineFragmentForLastCharacter) else {
-            return
-        }
-        inputDelegate?.selectionWillChange(self)
-        _selectedRange = NSRange(location: location, length: 0)
-        inputDelegate?.selectionDidChange(self)
-    }
-
-    @objc private func goToLineEnd() {
-        guard let selectedRange = selectedRange else {
-            return
-        }
-        guard let location = lineMovementController.locationForGoingToEndOfLine(
-            movingFrom: selectedRange.upperBound,
-            treatEndOfLineFragmentAsPreviousLineFragment: !didPlaceCaretAtNextLineFragmentForLastCharacter) else {
-            return
-        }
-        placeCaretAtNextLineFragmentForLastCharacter = false
-        inputDelegate?.selectionWillChange(self)
-        _selectedRange = NSRange(location: location, length: 0)
-        inputDelegate?.selectionDidChange(self)
-    }
-
     private func handleKeyPressDuringMultistageTextInput(keyCode: UIKeyboardHIDUsage) {
         // When editing multistage text input (that is, we have a marked text) we let the user unmark the text
         // by pressing the arrow keys or Escape. This isn't common in iOS apps but it's the default behavior
@@ -920,30 +878,6 @@ private extension TextInputView {
                 self.selectedRange = NSRange(location: location, length: 0)
             }
         }
-    }
-
-    private func shouldPlaceCaretAtNextLineFragmentForLastCharacter(forNavigationInDirection direction: UITextLayoutDirection,
-                                                                    fromLocation location: Int) -> Bool {
-
-        guard direction == .up || direction == .down else {
-            return true
-        }
-        guard didPlaceCaretAtNextLineFragmentForLastCharacter else {
-            // The previous rect wasn't placed at the next line fragment so we don't do it this time either. This handles the case where:
-            // 1. The user navigates to the end of a line using CTRL+E in a line made up of multiple line fragments.
-            // 2. The user presses downwards.
-            // The caret should then be placed at the end of the line fragment instead.
-            return false
-        }
-        guard let line = lineManager.line(containingCharacterAt: location) else {
-            return true
-        }
-        guard let lineController = lineControllerStorage[line.id] else {
-            return true
-        }
-        let lineLocalLocation = location - line.location
-        let lineFragmentNode = lineController.lineFragmentNode(containingCharacterAt: lineLocalLocation)
-        return location == lineFragmentNode.data.lineFragment?.range.location
     }
 }
 
@@ -1028,11 +962,7 @@ extension TextInputView {
         guard let indexedPosition = position as? IndexedPosition else {
             fatalError("Expected position to be of type \(IndexedPosition.self)")
         }
-        let localPlaceCaretAtNextLineFragmentForLastCharacter = placeCaretAtNextLineFragmentForLastCharacter
-        didPlaceCaretAtNextLineFragmentForLastCharacter = localPlaceCaretAtNextLineFragmentForLastCharacter
-        placeCaretAtNextLineFragmentForLastCharacter = true
-        return layoutManager.caretRect(at: indexedPosition.index,
-                                       placeCaretAtNextLineFragmentForLastCharacter: localPlaceCaretAtNextLineFragmentForLastCharacter)
+        return layoutManager.caretRect(at: indexedPosition.index)
     }
 
     func caretRect(at location: Int) -> CGRect {
@@ -1422,15 +1352,9 @@ extension TextInputView {
             return nil
         }
         didCallPositionFromPositionInDirectionWithOffset = true
-        guard let newLocation = lineMovementController.location(
-            from: indexedPosition.index,
-            in: direction,
-            offset: offset,
-            treatEndOfLineFragmentAsPreviousLineFragment: !didPlaceCaretAtNextLineFragmentForLastCharacter) else {
+        guard let newLocation = lineMovementController.location(from: indexedPosition.index, in: direction, offset: offset) else {
             return nil
         }
-        placeCaretAtNextLineFragmentForLastCharacter = shouldPlaceCaretAtNextLineFragmentForLastCharacter(forNavigationInDirection: direction,
-                                                                                                          fromLocation: indexedPosition.index)
         return IndexedPosition(index: newLocation)
     }
 
