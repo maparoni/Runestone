@@ -31,12 +31,28 @@ final class TextInputView: UIView, UITextInput {
             }
         }
         set {
-            // We should not use this setter. It's intended for UIKit to use.
-            // It'll invoke the setter in various scenarios, for example when navigating the text using the keyboard.
-            let newRange = (newValue as? IndexedRange)?.range
+            // We should not use this setter. It's intended for UIKit to use. It'll invoke the setter in various scenarios, for example when navigating the text using the keyboard.
+            // On the iOS 16 beta, UIKit may pass an NSRange with a negatives length (e.g. {4, -2}) when double tapping to select text. This will cause a crash when UIKit later attempts to use the selected range with NSString's -substringWithRange:. This can be tested with a string containing the following three lines:
+            //    A
+            //
+            //    A
+            // Placing the character on the second line, which is empty, and double tapping several times on the empty line to select text will cause the editor to crash. To work around this we take the non-negative value of the selected range. Last tested on August 30th, 2022.
+            let newRange = (newValue as? IndexedRange)?.range.nonNegativeLength
             if newRange != _selectedRange {
-                shouldNotifyInputDelegateAboutSelectionChangeInLayoutSubviews = true
+                // The logic for determining whether or not to notify the input delegate is based on advice provided by Alexander Blach, developer of Textastic.
+                var shouldNotifyInputDelegate = false
+                if didCallPositionFromPositionInDirectionWithOffset {
+                    shouldNotifyInputDelegate = true
+                    didCallPositionFromPositionInDirectionWithOffset = false
+                }
+                shouldNotifyInputDelegateAboutSelectionChangeInLayoutSubviews = !shouldNotifyInputDelegate
+                if shouldNotifyInputDelegate {
+                    inputDelegate?.selectionWillChange(self)
+                }
                 _selectedRange = newRange
+                if shouldNotifyInputDelegate {
+                    inputDelegate?.selectionDidChange(self)
+                }
                 delegate?.textInputViewDidChangeSelection(self)
             }
         }
@@ -50,7 +66,7 @@ final class TextInputView: UIView, UITextInput {
             }
         }
         set {
-            markedRange = (newValue as? IndexedRange)?.range
+            markedRange = (newValue as? IndexedRange)?.range.nonNegativeLength
         }
     }
     var markedTextStyle: [NSAttributedString.Key: Any]?
@@ -119,7 +135,6 @@ final class TextInputView: UIView, UITextInput {
             pageGuideController.guideView.hairlineColor = theme.pageGuideHairlineColor
             pageGuideController.guideView.backgroundColor = theme.pageGuideBackgroundColor
             layoutManager.theme = theme
-            layoutManager.tabWidth = indentController.tabWidth
         }
     }
     var showLineNumbers: Bool {
@@ -182,7 +197,7 @@ final class TextInputView: UIView, UITextInput {
         set {
             if newValue != layoutManager.invisibleCharacterConfiguration.showLineBreaks {
                 layoutManager.invisibleCharacterConfiguration.showLineBreaks = newValue
-                layoutManager.invalidateLines()
+                invalidateLines()
                 layoutManager.setNeedsLayout()
                 layoutManager.setNeedsDisplayOnLines()
                 setNeedsLayout()
@@ -196,7 +211,7 @@ final class TextInputView: UIView, UITextInput {
         set {
             if newValue != layoutManager.invisibleCharacterConfiguration.showSoftLineBreaks {
                 layoutManager.invisibleCharacterConfiguration.showSoftLineBreaks = newValue
-                layoutManager.invalidateLines()
+                invalidateLines()
                 layoutManager.setNeedsLayout()
                 layoutManager.setNeedsDisplayOnLines()
                 setNeedsLayout()
@@ -262,7 +277,6 @@ final class TextInputView: UIView, UITextInput {
         didSet {
             if indentStrategy != oldValue {
                 indentController.indentStrategy = indentStrategy
-                layoutManager.tabWidth = indentController.tabWidth
                 layoutManager.setNeedsLayout()
                 setNeedsLayout()
                 layoutIfNeeded()
@@ -312,20 +326,17 @@ final class TextInputView: UIView, UITextInput {
         set {
             if newValue != layoutManager.isLineWrappingEnabled {
                 layoutManager.isLineWrappingEnabled = newValue
-                layoutManager.invalidateLines()
+                invalidateLines()
                 layoutManager.setNeedsLayout()
                 layoutManager.layoutIfNeeded()
             }
         }
     }
-    var lineBreakMode: LineBreakMode {
-        get {
-            return layoutManager.lineBreakMode
-        }
-        set {
-            if newValue != layoutManager.lineBreakMode {
-                layoutManager.lineBreakMode = newValue
-                layoutManager.invalidateLines()
+    var lineBreakMode: LineBreakMode = .byWordWrapping {
+        didSet {
+            if lineBreakMode != oldValue {
+                invalidateLines()
+                layoutManager.invalidateContentSize()
                 layoutManager.setNeedsLayout()
                 layoutManager.layoutIfNeeded()
             }
@@ -334,27 +345,23 @@ final class TextInputView: UIView, UITextInput {
     var gutterWidth: CGFloat {
         return layoutManager.gutterWidth
     }
-    var lineHeightMultiplier: CGFloat {
-        get {
-            return layoutManager.lineHeightMultiplier
-        }
-        set {
-            if newValue != layoutManager.lineHeightMultiplier {
-                layoutManager.lineHeightMultiplier = newValue
+    var lineHeightMultiplier: CGFloat = 1 {
+        didSet {
+            if lineHeightMultiplier != oldValue {
+                layoutManager.lineHeightMultiplier = lineHeightMultiplier
+                invalidateLines()
                 lineManager.estimatedLineHeight = estimatedLineHeight
                 layoutManager.setNeedsLayout()
                 setNeedsLayout()
             }
         }
     }
-    var kern: CGFloat {
-        get {
-            return layoutManager.kern
-        }
-        set {
-            if newValue != layoutManager.kern {
-                pageGuideController.kern = newValue
-                layoutManager.kern = newValue
+    var kern: CGFloat = 0 {
+        didSet {
+            if kern != oldValue {
+                invalidateLines()
+                pageGuideController.kern = kern
+                layoutManager.invalidateContentSize()
                 layoutManager.setNeedsLayout()
                 setNeedsLayout()
             }
@@ -421,7 +428,7 @@ final class TextInputView: UIView, UITextInput {
                 }
                 layoutManager.invalidateContentSize()
                 layoutManager.updateLineNumberWidth()
-                layoutManager.invalidateLines()
+                invalidateLines()
                 layoutManager.setNeedsLayout()
                 layoutManager.layoutIfNeeded()
                 if !shouldPreserveUndoStackWhenSettingString {
@@ -442,12 +449,14 @@ final class TextInputView: UIView, UITextInput {
             }
         }
     }
-    var scrollViewWidth: CGFloat {
-        get {
-            return layoutManager.scrollViewWidth
-        }
-        set {
-            layoutManager.scrollViewWidth = newValue
+    var scrollViewWidth: CGFloat = 0 {
+        didSet {
+            if scrollViewWidth != oldValue {
+                layoutManager.scrollViewWidth = scrollViewWidth
+                if isLineWrappingEnabled {
+                    invalidateLines()
+                }
+            }
         }
     }
     var contentSize: CGSize {
@@ -491,6 +500,7 @@ final class TextInputView: UIView, UITextInput {
         didSet {
             if stringView !== oldValue {
                 lineManager.stringView = stringView
+                lineControllerStorage.stringView = stringView
                 layoutManager.stringView = stringView
                 indentController.stringView = stringView
                 lineMovementController.stringView = stringView
@@ -521,6 +531,7 @@ final class TextInputView: UIView, UITextInput {
             }
         }
     }
+    private let lineControllerStorage: LineControllerStorage
     private let layoutManager: LayoutManager
     private let timedUndoManager = TimedUndoManager()
     private let indentController: IndentController
@@ -551,28 +562,33 @@ final class TextInputView: UIView, UITextInput {
     private let editMenuController = EditMenuController()
     // swiftlint:disable:next identifier_name
     private var shouldNotifyInputDelegateAboutSelectionChangeInLayoutSubviews = false
+    private var didCallPositionFromPositionInDirectionWithOffset = false
     private var shouldPreserveUndoStackWhenSettingString = false
 
     // MARK: - Lifecycle
     init(theme: Theme) {
         self.theme = theme
         lineManager = LineManager(stringView: stringView)
-        layoutManager = LayoutManager(lineManager: lineManager, languageMode: languageMode, stringView: stringView)
-        indentController = IndentController(
-            stringView: stringView,
-            lineManager: lineManager,
-            languageMode: languageMode,
-            indentStrategy: indentStrategy,
-            indentFont: theme.font)
-        lineMovementController = LineMovementController(lineManager: lineManager, stringView: stringView)
+        lineControllerStorage = LineControllerStorage(stringView: stringView)
+        layoutManager = LayoutManager(lineManager: lineManager,
+                                      languageMode: languageMode,
+                                      stringView: stringView,
+                                      lineControllerStorage: lineControllerStorage)
+        indentController = IndentController(stringView: stringView,
+                                            lineManager: lineManager,
+                                            languageMode: languageMode,
+                                            indentStrategy: indentStrategy,
+                                            indentFont: theme.font)
+        lineMovementController = LineMovementController(lineManager: lineManager,
+                                                        stringView: stringView,
+                                                        lineControllerStorage: lineControllerStorage)
         super.init(frame: .zero)
         lineManager.estimatedLineHeight = estimatedLineHeight
         indentController.delegate = self
-        lineMovementController.delegate = self
+        lineControllerStorage.delegate = self
         layoutManager.delegate = self
         layoutManager.textInputView = self
         layoutManager.theme = theme
-        layoutManager.tabWidth = indentController.tabWidth
         editMenuController.delegate = self
         editMenuController.setupEditMenu(in: self)
     }
@@ -745,7 +761,7 @@ final class TextInputView: UIView, UITextInput {
         layoutManager.languageMode = internalLanguageMode
         internalLanguageMode.parse(string) { [weak self] finished in
             if let self = self, finished {
-                self.layoutManager.invalidateLines()
+                self.invalidateLines()
                 self.layoutManager.setNeedsLayout()
                 self.layoutManager.layoutIfNeeded()
             }
@@ -810,7 +826,7 @@ final class TextInputView: UIView, UITextInput {
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-            layoutManager.invalidateLines()
+            invalidateLines()
             layoutManager.setNeedsLayout()
         }
     }
@@ -886,9 +902,19 @@ private extension TextInputView {
     }
 
     private func performFullLayout() {
-        layoutManager.invalidateLines()
+        invalidateLines()
         layoutManager.setNeedsLayout()
         layoutManager.layoutIfNeeded()
+    }
+
+    private func invalidateLines() {
+        for lineController in lineControllerStorage {
+            lineController.lineFragmentHeightMultiplier = lineHeightMultiplier
+            lineController.tabWidth = indentController.tabWidth
+            lineController.kern = kern
+            lineController.lineBreakMode = lineBreakMode
+            lineController.invalidateSyntaxHighlighting()
+        }
     }
 }
 
@@ -1184,8 +1210,9 @@ extension TextInputView {
     }
 
     private func safeSelectionRange(from range: NSRange) -> NSRange {
-        let cappedLocation = min(max(range.location, 0), stringView.string.length)
-        let cappedLength = min(max(range.length, 0), stringView.string.length - cappedLocation)
+        let stringLength = stringView.string.length
+        let cappedLocation = min(max(range.location, 0), stringLength)
+        let cappedLength = min(max(range.length, 0), stringLength - cappedLocation)
         return NSRange(location: cappedLocation, length: cappedLength)
     }
 
@@ -1295,7 +1322,8 @@ extension TextInputView {
         markedRange = markedText.isEmpty ? nil : NSRange(location: range.location, length: markedText.utf16.count)
         replaceText(in: range, with: markedText)
         // The selected range passed to setMarkedText(_:selectedRange:) is local to the marked range.
-        _selectedRange = NSRange(location: range.location + selectedRange.location, length: selectedRange.length)
+        let preferredSelectedRange = NSRange(location: range.location + selectedRange.location, length: selectedRange.length)
+        _selectedRange = safeSelectionRange(from: preferredSelectedRange)
         delegate?.textInputViewDidUpdateMarkedRange(self)
     }
 
@@ -1328,6 +1356,7 @@ extension TextInputView {
         guard let indexedPosition = position as? IndexedPosition else {
             return nil
         }
+        didCallPositionFromPositionInDirectionWithOffset = true
         guard let location = lineMovementController.location(from: indexedPosition.index, in: direction, offset: offset) else {
             return nil
         }
@@ -1474,6 +1503,33 @@ extension TextInputView: TreeSitterLanguageModeDelegate {
     }
 }
 
+// MARK: - LineControllerStorageDelegate
+extension TextInputView: LineControllerStorageDelegate {
+    func lineControllerStorage(_ storage: LineControllerStorage, didCreate lineController: LineController) {
+        lineController.delegate = self
+        lineController.constrainingWidth = layoutManager.constrainingLineWidth
+        lineController.estimatedLineFragmentHeight = theme.font.totalLineHeight
+        lineController.lineFragmentHeightMultiplier = lineHeightMultiplier
+        lineController.tabWidth = indentController.tabWidth
+        lineController.theme = theme
+        lineController.lineBreakMode = lineBreakMode
+    }
+}
+
+// MARK: - LineControllerDelegate
+extension TextInputView: LineControllerDelegate {
+    func lineSyntaxHighlighter(for lineController: LineController) -> LineSyntaxHighlighter? {
+        let syntaxHighlighter = languageMode.createLineSyntaxHighlighter()
+        syntaxHighlighter.kern = kern
+        return syntaxHighlighter
+    }
+
+    func lineControllerDidInvalidateLineWidthDuringAsyncSyntaxHighlight(_ lineController: LineController) {
+        setNeedsLayout()
+        layoutManager.setNeedsLayout()
+    }
+}
+
 // MARK: - LayoutManagerDelegate
 extension TextInputView: LayoutManagerDelegate {
     func layoutManagerDidInvalidateContentSize(_ layoutManager: LayoutManager) {
@@ -1488,14 +1544,9 @@ extension TextInputView: LayoutManagerDelegate {
         // Typeset lines again when the line number width changes.
         // Changing line number width may increase or reduce the number of line fragments in a line.
         setNeedsLayout()
-        layoutManager.invalidateLines()
+        invalidateLines()
         layoutManager.setNeedsLayout()
         delegate?.textInputViewDidChangeGutterWidth(self)
-    }
-
-    func layoutManagerDidInvalidateLineWidthDuringAsyncSyntaxHighlight(_ layoutManager: LayoutManager) {
-        setNeedsLayout()
-        layoutManager.setNeedsLayout()
     }
 }
 
@@ -1510,24 +1561,9 @@ extension TextInputView: IndentControllerDelegate {
         selectedRange = range
         inputDelegate?.selectionDidChange(self)
     }
-}
 
-// MARK: - LineMovementControllerDelegate
-extension TextInputView: LineMovementControllerDelegate {
-    func lineMovementController(_ controller: LineMovementController, numberOfLineFragmentsIn line: DocumentLineNode) -> Int {
-        return layoutManager.numberOfLineFragments(in: line)
-    }
-
-    func lineMovementController(_ controller: LineMovementController,
-                                lineFragmentNodeAtIndex index: Int,
-                                in line: DocumentLineNode) -> LineFragmentNode {
-        return layoutManager.lineFragmentNode(atIndex: index, in: line)
-    }
-
-    func lineMovementController(_ controller: LineMovementController,
-                                lineFragmentNodeContainingCharacterAt location: Int,
-                                in line: DocumentLineNode) -> LineFragmentNode {
-        return layoutManager.lineFragmentNode(containingCharacterAt: location, in: line)
+    func indentControllerDidUpdateTabWidth(_ controller: IndentController) {
+        invalidateLines()
     }
 }
 
