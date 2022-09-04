@@ -14,7 +14,9 @@ let package = Package(
         .library(name: "RunestoneSwiftUI", targets: ["RunestoneSwiftUI"])
     ],
     targets: [
-        .target(name: "Runestone", dependencies: ["TreeSitter"]),
+        .target(name: "Runestone",
+                dependencies: ["TreeSitter"],
+                resources: [.process("DefaultTheme/Theme.xcassets")]),
         .target(name: "RunestoneSwiftUI", dependencies: ["Runestone"]),
         .target(name: "TreeSitter",
                 path: "tree-sitter/lib",
