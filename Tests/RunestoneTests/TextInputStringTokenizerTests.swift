@@ -105,6 +105,46 @@ extension TextInputStringTokenizerTests {
         let indexedPosition = position as! IndexedPosition
         XCTAssertEqual(indexedPosition.index, 290)
     }
+
+    func testBeginningOfDocumentIsAtBoundary() {
+        let tokenizer = makeTokenizer()
+        let position = IndexedPosition(index: 0)
+        let textDirection = UITextDirection(rawValue: UITextStorageDirection.backward.rawValue)
+        let isAtBoundary = tokenizer.isPosition(position, atBoundary: .line, inDirection: textDirection)
+        XCTAssertTrue(isAtBoundary)
+    }
+
+    func testEndOfDocumentIsAtBoundary() {
+        let tokenizer = makeTokenizer()
+        let position = IndexedPosition(index: 457)
+        let textDirection = UITextDirection(rawValue: UITextStorageDirection.forward.rawValue)
+        let isAtBoundary = tokenizer.isPosition(position, atBoundary: .line, inDirection: textDirection)
+        XCTAssertTrue(isAtBoundary)
+    }
+
+    func testBeginningOfLineFragmentIsAtBoundary() {
+        let tokenizer = makeTokenizer()
+        let position = IndexedPosition(index: 35)
+        let textDirection = UITextDirection(rawValue: UITextStorageDirection.backward.rawValue)
+        let isAtBoundary = tokenizer.isPosition(position, atBoundary: .line, inDirection: textDirection)
+        XCTAssertFalse(isAtBoundary)
+    }
+
+    func testEndOfLineFragmentIsAtBoundary() {
+        let tokenizer = makeTokenizer()
+        let position = IndexedPosition(index: 87)
+        let textDirection = UITextDirection(rawValue: UITextStorageDirection.backward.rawValue)
+        let isAtBoundary = tokenizer.isPosition(position, atBoundary: .line, inDirection: textDirection)
+        XCTAssertFalse(isAtBoundary)
+    }
+
+    func testMiddleOfLineFragmentIsNotAtBoundary() {
+        let tokenizer = makeTokenizer()
+        let position = IndexedPosition(index: 35)
+        let textDirection = UITextDirection(rawValue: UITextStorageDirection.backward.rawValue)
+        let isAtBoundary = tokenizer.isPosition(position, atBoundary: .line, inDirection: textDirection)
+        XCTAssertFalse(isAtBoundary)
+    }
 }
 
 // MARK: - Movement in Paragraphs
@@ -227,9 +267,14 @@ Donec laoreet, massa sed commodo tincidunt, dui neque ullamcorper sapien, laoree
         let stringLength = textInputView.stringView.string.length
         textInputView.layoutLines(toLocation: stringLength)
         let stringView = StringView(string: sampleText)
+        let invisibleCharacterConfiguration = InvisibleCharacterConfiguration()
         let lineManager = LineManager(stringView: stringView)
         lineManager.rebuild()
-        let lineControllerStorage = LineControllerStorage(stringView: stringView)
+        let highlightService = HighlightService(lineManager: lineManager)
+        let lineControllerFactory = LineControllerFactory(stringView: stringView,
+                                                          highlightService: highlightService,
+                                                          invisibleCharacterConfiguration: invisibleCharacterConfiguration)
+        let lineControllerStorage = LineControllerStorage(stringView: stringView, lineControllerFactory: lineControllerFactory)
         lineControllerStorage.delegate = self
         for row in 0 ..< lineManager.lineCount {
             let line = lineManager.line(atRow: row)

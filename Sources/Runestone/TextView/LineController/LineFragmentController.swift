@@ -21,18 +21,13 @@ final class LineFragmentController {
             }
         }
     }
-    var invisibleCharacterConfiguration: InvisibleCharacterConfiguration {
+    var markedRange: NSRange? {
         get {
-            return renderer.invisibleCharacterConfiguration
+            return renderer.markedRange
         }
         set {
-            renderer.invisibleCharacterConfiguration = newValue
-        }
-    }
-    var markedRange: NSRange? {
-        didSet {
-            if markedRange != oldValue {
-                renderer.markedRange = markedRange
+            if newValue != renderer.markedRange {
+                renderer.markedRange = newValue
                 lineFragmentView?.setNeedsDisplay()
             }
         }
@@ -59,12 +54,23 @@ final class LineFragmentController {
             }
         }
     }
+    var highlightedRangeFragments: [HighlightedRangeFragment] {
+        get {
+            return renderer.highlightedRangeFragments
+        }
+        set {
+            if newValue != renderer.highlightedRangeFragments {
+                renderer.highlightedRangeFragments = newValue
+                lineFragmentView?.setNeedsDisplay()
+            }
+        }
+    }
 
     private let renderer: LineFragmentRenderer
 
-    init(lineFragment: LineFragment) {
+    init(lineFragment: LineFragment, invisibleCharacterConfiguration: InvisibleCharacterConfiguration) {
         self.lineFragment = lineFragment
-        self.renderer = LineFragmentRenderer(lineFragment: lineFragment)
+        self.renderer = LineFragmentRenderer(lineFragment: lineFragment, invisibleCharacterConfiguration: invisibleCharacterConfiguration)
         self.renderer.delegate = self
     }
 }

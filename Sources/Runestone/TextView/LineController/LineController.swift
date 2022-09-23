@@ -22,7 +22,6 @@ final class LineController {
         didSet {
             if lineFragmentHeightMultiplier != oldValue {
                 typesetter.lineFragmentHeightMultiplier = lineFragmentHeightMultiplier
-                textInputProxy.lineFragmentHeightMultiplier = lineFragmentHeightMultiplier
             }
         }
     }
@@ -32,13 +31,7 @@ final class LineController {
             applyThemeToAllLineFragmentControllers()
         }
     }
-    var estimatedLineFragmentHeight: CGFloat = 15 {
-        didSet {
-            if estimatedLineFragmentHeight != oldValue {
-                textInputProxy.estimatedLineFragmentHeight = estimatedLineFragmentHeight
-            }
-        }
-    }
+    var estimatedLineFragmentHeight: CGFloat = 15
     var tabWidth: CGFloat = 10
     var constrainingWidth: CGFloat {
         get {
@@ -92,9 +85,10 @@ final class LineController {
     private(set) var attributedString: NSMutableAttributedString?
 
     private let stringView: StringView
+    private let invisibleCharacterConfiguration: InvisibleCharacterConfiguration
+    private let highlightService: HighlightService
     private let typesetter: LineTypesetter
     private var cachedSyntaxHighlighter: LineSyntaxHighlighter?
-    private let textInputProxy = LineTextInputProxy()
     private var lineFragmentControllers: [LineFragmentID: LineFragmentController] = [:]
     private var isLineFragmentCacheInvalid = true
     private var isStringInvalid = true
@@ -115,11 +109,15 @@ final class LineController {
         }
     }
 
-    init(line: DocumentLineNode, stringView: StringView) {
+    init(line: DocumentLineNode,
+         stringView: StringView,
+         invisibleCharacterConfiguration: InvisibleCharacterConfiguration,
+         highlightService: HighlightService) {
         self.line = line
         self.stringView = stringView
+        self.invisibleCharacterConfiguration = invisibleCharacterConfiguration
+        self.highlightService = highlightService
         self.typesetter = LineTypesetter(lineID: line.id.rawValue)
-        self.textInputProxy.estimatedLineFragmentHeight = estimatedLineFragmentHeight
         let rootLineFragmentNodeData = LineFragmentNodeData(lineFragment: nil)
         self.lineFragmentTree = LineFragmentTree(minimumValue: 0, rootValue: 0, rootData: rootLineFragmentNodeData)
     }
@@ -164,7 +162,7 @@ final class LineController {
         return lineFragmentControllers(matching: query)
     }
 
-    func lineFragmentNode(containingCharacterAt location: Int) -> LineFragmentNode {
+    func lineFragmentNode(containingCharacterAt location: Int) -> LineFragmentNode? {
         return lineFragmentTree.node(containingLocation: location)
     }
 
@@ -193,7 +191,8 @@ final class LineController {
 private extension LineController {
     private func prepareToDisplayString(_ typesetAmount: TypesetAmount, syntaxHighlightAsynchronously: Bool) {
         prepareString(syntaxHighlightAsynchronously: syntaxHighlightAsynchronously)
-        justTypesetLineFragments(typesetAmount)
+        typesetLineFragments(typesetAmount)
+        updateHighlightedRangeFragments()
     }
 
     private func prepareString(syntaxHighlightAsynchronously: Bool) {
@@ -205,7 +204,7 @@ private extension LineController {
         updateTypesetterIfNecessary()
     }
 
-    private func justTypesetLineFragments(_ typesetAmount: TypesetAmount) {
+    private func typesetLineFragments(_ typesetAmount: TypesetAmount) {
         let newLineFragments: [LineFragment]
         switch typesetAmount {
         case .inRect(let rect):
@@ -215,7 +214,6 @@ private extension LineController {
             newLineFragments = typesetter.typesetLineFragments(toLocation: location, additionalLineFragmentCount: 1)
         }
         updateLineHeight(for: newLineFragments)
-        textInputProxy.lineFragments = typesetter.lineFragments
     }
 
     private func clearLineFragmentControllersIfNecessary() {
@@ -353,7 +351,8 @@ private extension LineController {
             lineFragmentController.lineFragment = lineFragment
             return lineFragmentController
         } else {
-            let lineFragmentController = LineFragmentController(lineFragment: lineFragment)
+            let lineFragmentController = LineFragmentController(lineFragment: lineFragment,
+                                                                invisibleCharacterConfiguration: invisibleCharacterConfiguration)
             lineFragmentController.delegate = self
             lineFragmentControllers[lineFragment.id] = lineFragmentController
             applyTheme(to: lineFragmentController)
@@ -367,7 +366,6 @@ private extension LineController {
         updateTypesetterIfNecessary()
         let newLineFragments = typesetter.typesetLineFragments(toLocation: typesetLength)
         updateLineHeight(for: newLineFragments)
-        textInputProxy.lineFragments = typesetter.lineFragments
         reapplyLineFragmentToLineFragmentControllers()
         setNeedsDisplayOnLineFragmentViews()
     }
@@ -403,20 +401,75 @@ private extension LineController {
         lineFragmentController.markedTextBackgroundColor = theme.markedTextBackgroundColor
         lineFragmentController.markedTextBackgroundCornerRadius = theme.markedTextBackgroundCornerRadius
     }
+
+    private func updateHighlightedRangeFragments() {
+        for (_, lineFragmentController) in lineFragmentControllers {
+            let lineFragment = lineFragmentController.lineFragment
+            let highlightedRangeFragments = highlightService.highlightedRangeFragments(for: lineFragment, inLineWithID: line.id)
+            lineFragmentController.highlightedRangeFragments = highlightedRangeFragments
+        }
+    }
+
+    private func lineFragment(closestTo point: CGPoint) -> LineFragment? {
+        var closestLineFragment = typesetter.lineFragments.last
+        for lineFragment in typesetter.lineFragments {
+            let lineMaxY = lineFragment.yPosition + lineFragment.scaledSize.height
+            if point.y <= lineMaxY {
+                closestLineFragment = lineFragment
+                break
+            }
+        }
+        return closestLineFragment
+    }
 }
 
 // MARK: - UITextInput
 extension LineController {
     func caretRect(atIndex index: Int) -> CGRect {
-        return textInputProxy.caretRect(atIndex: index)
+        for lineFragment in typesetter.lineFragments {
+            let lineRange = CTLineGetStringRange(lineFragment.line)
+            let localIndex = index - lineRange.location
+            if localIndex >= 0 && localIndex <= lineRange.length {
+                let xPosition = CTLineGetOffsetForStringIndex(lineFragment.line, index, nil)
+                let yPosition = lineFragment.yPosition + (lineFragment.scaledSize.height - lineFragment.baseSize.height) / 2
+                return CGRect(x: xPosition, y: yPosition, width: Caret.width, height: lineFragment.baseSize.height)
+            }
+        }
+        let yPosition = (estimatedLineFragmentHeight * lineFragmentHeightMultiplier - estimatedLineFragmentHeight) / 2
+        return CGRect(x: 0, y: yPosition, width: Caret.width, height: estimatedLineFragmentHeight)
     }
 
     func firstRect(for range: NSRange) -> CGRect {
-        return textInputProxy.firstRect(for: range)
+        for lineFragment in typesetter.lineFragments {
+            let line = lineFragment.line
+            let lineRange = CTLineGetStringRange(line)
+            let index = range.location
+            if index >= 0 && index <= lineRange.length {
+                let finalIndex = min(lineRange.location + lineRange.length, range.location + range.length)
+                let xStart = CTLineGetOffsetForStringIndex(line, index, nil)
+                let xEnd = CTLineGetOffsetForStringIndex(line, finalIndex, nil)
+                return CGRect(x: xStart, y: lineFragment.yPosition, width: xEnd - xStart, height: lineFragment.scaledSize.height)
+            }
+        }
+        return CGRect(x: 0, y: 0, width: 0, height: estimatedLineFragmentHeight * lineFragmentHeightMultiplier)
     }
 
     func closestIndex(to point: CGPoint) -> Int {
-        return textInputProxy.closestIndex(to: point)
+        guard let closestLineFragment = lineFragment(closestTo: point) else {
+            return 0
+        }
+        let localLocation = min(CTLineGetStringIndexForPosition(closestLineFragment.line, point), line.data.length)
+        if closestLineFragment === typesetter.lineFragments.last {
+            let lastCharacterRect = caretRect(atIndex: closestLineFragment.range.upperBound)
+            if point.x >= lastCharacterRect.maxX + 50 {
+                // Location is significantly far from the last character and therefore we select the entire line, including the delimiter.
+                return line.location + line.data.length + line.data.delimiterLength
+            } else {
+                return line.location + localLocation
+            }
+        } else {
+            return line.location + localLocation
+        }
     }
 }
 
