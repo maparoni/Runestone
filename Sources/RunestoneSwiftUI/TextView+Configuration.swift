@@ -18,7 +18,10 @@ extension TextEditor {
       self.showLineNumbers = showLineNumbers
     }
     
+    /// A Boolean value that indicates whether the text view is editable.
     public var isEditable: Bool = true
+    
+    /// Enable to show line numbers in the gutter.
     public var showLineNumbers: Bool = false
   }
 }

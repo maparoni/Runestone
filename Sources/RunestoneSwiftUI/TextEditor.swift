@@ -14,14 +14,15 @@ public struct TextEditor: UIViewRepresentable {
   
   @Environment(\.themeFontSize) var themeFontSize
   
-  public let text: Binding<String>
+  @Binding var text: String
+  
   let actualTheme: OverridingTheme
   public var theme: Theme { actualTheme.base }
   public let language: TreeSitterLanguage?
   public let configuration: Configuration
   
   public init(text: Binding<String>, theme: Theme, language: TreeSitterLanguage? = nil, configuration: Configuration = .init()) {
-    self.text = text
+    self._text = text
     self.actualTheme = OverridingTheme(base: theme)
     self.language = language
     self.configuration = configuration
@@ -36,7 +37,7 @@ public struct TextEditor: UIViewRepresentable {
     textView.apply(configuration)
     
     textView.editorDelegate = context.coordinator
-    context.coordinator.configure(text: text, theme: actualTheme, language: language) { state in
+    context.coordinator.configure(text: $text, theme: actualTheme, language: language) { state in
       textView.setState(state)
     }
     
@@ -64,6 +65,10 @@ public struct TextEditor: UIViewRepresentable {
       actualTheme.font = UIFont(descriptor: theme.font.fontDescriptor, size: fontSize)
       textView.theme = actualTheme
     }
+    
+    context.coordinator.configure(text: $text, theme: actualTheme, language: language) { state in
+      textView.setState(state)
+    }
   }
 }
 
@@ -79,7 +84,7 @@ public class TextEditorCoordinator: ObservableObject {
   var text: Binding<String>?
   
   func configure(text: Binding<String>, theme: Theme, language: TreeSitterLanguage?, completion: @escaping (TextViewState) -> Void) {
-    self.text = text
+    guard self.text?.wrappedValue != text.wrappedValue else { return }
     
     DispatchQueue.global(qos: .background).async {
       let state: TextViewState
