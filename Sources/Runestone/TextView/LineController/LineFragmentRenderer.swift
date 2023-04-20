@@ -20,7 +20,7 @@ final class LineFragmentRenderer {
     var highlightedRangeFragments: [HighlightedRangeFragment] = []
 
     private var showInvisibleCharacters: Bool {
-        return invisibleCharacterConfiguration.showTabs
+        invisibleCharacterConfiguration.showTabs
             || invisibleCharacterConfiguration.showSpaces
             || invisibleCharacterConfiguration.showLineBreaks
             || invisibleCharacterConfiguration.showSoftLineBreaks
@@ -34,7 +34,7 @@ final class LineFragmentRenderer {
     func draw(to context: CGContext, inCanvasOfSize canvasSize: CGSize) {
         drawHighlightedRanges(to: context, inCanvasOfSize: canvasSize)
         drawMarkedRange(to: context)
-        drawInvisibleCharacters(to: context)
+        drawInvisibleCharacters()
         drawText(to: context)
     }
 }
@@ -87,11 +87,9 @@ private extension LineFragmentRenderer {
         }
     }
 
-    private func drawInvisibleCharacters(to context: CGContext) {
-        if showInvisibleCharacters {
-            if let string = delegate?.string(in: self) {
-                drawInvisibleCharacters(in: string, to: context)
-            }
+    private func drawInvisibleCharacters() {
+        if showInvisibleCharacters, let string = delegate?.string(in: self) {
+            drawInvisibleCharacters(in: string)
         }
     }
 
@@ -106,10 +104,11 @@ private extension LineFragmentRenderer {
         context.restoreGState()
     }
 
-    private func drawInvisibleCharacters(in string: String, to context: CGContext) {
-        let textRange = CTLineGetStringRange(lineFragment.line)
-        for (indexInLineFragment, substring) in string.enumerated() {
-            let indexInLine = textRange.location + indexInLineFragment
+    private func drawInvisibleCharacters(in string: String) {
+        var indexInLineFragment = 0
+        for substring in string {
+            let indexInLine = lineFragment.visibleRange.location + indexInLineFragment
+            indexInLineFragment += substring.utf16.count
             if invisibleCharacterConfiguration.showSpaces && substring == Symbol.Character.space {
                 draw(invisibleCharacterConfiguration.spaceSymbol, at: .character(indexInLine))
             } else if invisibleCharacterConfiguration.showNonBreakingSpaces && substring == Symbol.Character.nonBreakingSpace {
@@ -156,6 +155,6 @@ private extension LineFragmentRenderer {
     }
 
     private func isLineBreak(_ string: String.Element) -> Bool {
-        return string == Symbol.Character.lineFeed || string == Symbol.Character.carriageReturn || string == Symbol.Character.carriageReturnLineFeed
+        string == Symbol.Character.lineFeed || string == Symbol.Character.carriageReturn || string == Symbol.Character.carriageReturnLineFeed
     }
 }

@@ -8,7 +8,7 @@ protocol TreeSitterLanguageModeDelegate: AnyObject {
 final class TreeSitterInternalLanguageMode: InternalLanguageMode {
     weak var delegate: TreeSitterLanguageModeDelegate?
     var canHighlight: Bool {
-        return rootLanguageLayer.canHighlight
+        rootLanguageLayer.canHighlight
     }
 
     private let stringView: StringView
@@ -21,7 +21,7 @@ final class TreeSitterInternalLanguageMode: InternalLanguageMode {
         self.stringView = stringView
         self.lineManager = lineManager
         operationQueue.name = "TreeSitterLanguageMode"
-        operationQueue.qualityOfService = .userInitiated
+        operationQueue.qualityOfService = .default
         parser = TreeSitterParser(encoding: TSInputEncodingUTF16)
         rootLanguageLayer = TreeSitterLanguageLayer(
             language: language,
@@ -72,11 +72,11 @@ final class TreeSitterInternalLanguageMode: InternalLanguageMode {
     }
 
     func captures(in range: ByteRange) -> [TreeSitterCapture] {
-        return rootLanguageLayer.captures(in: range)
+        rootLanguageLayer.captures(in: range)
     }
 
     func createLineSyntaxHighlighter() -> LineSyntaxHighlighter {
-        return TreeSitterSyntaxHighlighter(stringView: stringView, languageMode: self, operationQueue: operationQueue)
+        TreeSitterSyntaxHighlighter(stringView: stringView, languageMode: self, operationQueue: operationQueue)
     }
 
     func currentIndentLevel(of line: DocumentLineNode, using indentStrategy: IndentStrategy) -> Int {
@@ -129,6 +129,6 @@ final class TreeSitterInternalLanguageMode: InternalLanguageMode {
 
 extension TreeSitterInternalLanguageMode: TreeSitterParserDelegate {
     func parser(_ parser: TreeSitterParser, bytesAt byteIndex: ByteCount) -> TreeSitterTextProviderResult? {
-        return delegate?.treeSitterLanguageMode(self, bytesAt: byteIndex)
+        delegate?.treeSitterLanguageMode(self, bytesAt: byteIndex)
     }
 }

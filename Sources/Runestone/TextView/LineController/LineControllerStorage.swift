@@ -5,7 +5,7 @@ protocol LineControllerStorageDelegate: AnyObject {
 final class LineControllerStorage {
     weak var delegate: LineControllerStorageDelegate?
     subscript(_ lineID: DocumentLineNodeID) -> LineController? {
-        return lineControllers[lineID]
+        lineControllers[lineID]
     }
 
     var stringView: StringView {
@@ -17,7 +17,7 @@ final class LineControllerStorage {
     }
 
     fileprivate var numberOfLineControllers: Int {
-        return lineControllers.count
+        lineControllers.count
     }
 
     private var lineControllers: [DocumentLineNodeID: LineController] = [:]
@@ -41,6 +41,10 @@ final class LineControllerStorage {
 
     func removeLineController(withID lineID: DocumentLineNodeID) {
         lineControllers.removeValue(forKey: lineID)
+    }
+
+    func removeAllLineControllers() {
+        lineControllers.removeAll()
     }
 
     func removeAllLineControllers(exceptLinesWithID exceptionLineIDs: Set<DocumentLineNodeID>) {

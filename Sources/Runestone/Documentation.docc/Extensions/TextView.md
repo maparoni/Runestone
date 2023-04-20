@@ -93,6 +93,7 @@
 - ``GoToLineSelection``
 - ``moveSelectedLinesUp()``
 - ``moveSelectedLinesDown()``
+- ``scrollRangeToVisible(_:)``
 
 ### Indenting Text
 
@@ -160,7 +161,6 @@
 
 - ``contentOffset``
 - ``isAutomaticScrollEnabled``
-- ``automaticScrollInset``
 
 ### Laying Out Subviews
 

@@ -72,19 +72,22 @@ final class TextInputView: UIView, UITextInput {
     }
     var markedTextStyle: [NSAttributedString.Key: Any]?
     var beginningOfDocument: UITextPosition {
-        return IndexedPosition(index: 0)
+        IndexedPosition(index: 0)
     }
     var endOfDocument: UITextPosition {
-        return IndexedPosition(index: string.length)
+        IndexedPosition(index: string.length)
     }
     weak var inputDelegate: UITextInputDelegate?
     var hasText: Bool {
-        return string.length > 0
+        string.length > 0
     }
-    private(set) lazy var tokenizer: UITextInputTokenizer = TextInputStringTokenizer(textInput: self,
-                                                                                     stringView: stringView,
-                                                                                     lineManager: lineManager,
-                                                                                     lineControllerStorage: lineControllerStorage)
+    var tokenizer: UITextInputTokenizer {
+        customTokenizer
+    }
+    private lazy var customTokenizer = TextInputStringTokenizer(textInput: self,
+                                                                stringView: stringView,
+                                                                lineManager: lineManager,
+                                                                lineControllerStorage: lineControllerStorage)
     var autocorrectionType: UITextAutocorrectionType = .default
     var autocapitalizationType: UITextAutocapitalizationType = .sentences
     var smartQuotesType: UITextSmartQuotesType = .default
@@ -123,7 +126,7 @@ final class TextInputView: UIView, UITextInput {
         }
     }
     override var undoManager: UndoManager? {
-        return timedUndoManager
+        timedUndoManager
     }
 
     // MARK: - Appearance
@@ -145,7 +148,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var lineSelectionDisplayType: LineSelectionDisplayType {
         get {
-            return layoutManager.lineSelectionDisplayType
+            layoutManager.lineSelectionDisplayType
         }
         set {
             layoutManager.lineSelectionDisplayType = newValue
@@ -153,7 +156,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var showTabs: Bool {
         get {
-            return invisibleCharacterConfiguration.showTabs
+            invisibleCharacterConfiguration.showTabs
         }
         set {
             if newValue != invisibleCharacterConfiguration.showTabs {
@@ -164,7 +167,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var showSpaces: Bool {
         get {
-            return invisibleCharacterConfiguration.showSpaces
+            invisibleCharacterConfiguration.showSpaces
         }
         set {
             if newValue != invisibleCharacterConfiguration.showSpaces {
@@ -175,7 +178,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var showNonBreakingSpaces: Bool {
         get {
-            return invisibleCharacterConfiguration.showNonBreakingSpaces
+            invisibleCharacterConfiguration.showNonBreakingSpaces
         }
         set {
             if newValue != invisibleCharacterConfiguration.showNonBreakingSpaces {
@@ -186,7 +189,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var showLineBreaks: Bool {
         get {
-            return invisibleCharacterConfiguration.showLineBreaks
+            invisibleCharacterConfiguration.showLineBreaks
         }
         set {
             if newValue != invisibleCharacterConfiguration.showLineBreaks {
@@ -200,7 +203,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var showSoftLineBreaks: Bool {
         get {
-            return invisibleCharacterConfiguration.showSoftLineBreaks
+            invisibleCharacterConfiguration.showSoftLineBreaks
         }
         set {
             if newValue != invisibleCharacterConfiguration.showSoftLineBreaks {
@@ -214,7 +217,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var tabSymbol: String {
         get {
-            return invisibleCharacterConfiguration.tabSymbol
+            invisibleCharacterConfiguration.tabSymbol
         }
         set {
             if newValue != invisibleCharacterConfiguration.tabSymbol {
@@ -225,7 +228,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var spaceSymbol: String {
         get {
-            return invisibleCharacterConfiguration.spaceSymbol
+            invisibleCharacterConfiguration.spaceSymbol
         }
         set {
             if newValue != invisibleCharacterConfiguration.spaceSymbol {
@@ -236,7 +239,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var nonBreakingSpaceSymbol: String {
         get {
-            return invisibleCharacterConfiguration.nonBreakingSpaceSymbol
+            invisibleCharacterConfiguration.nonBreakingSpaceSymbol
         }
         set {
             if newValue != invisibleCharacterConfiguration.nonBreakingSpaceSymbol {
@@ -247,7 +250,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var lineBreakSymbol: String {
         get {
-            return invisibleCharacterConfiguration.lineBreakSymbol
+            invisibleCharacterConfiguration.lineBreakSymbol
         }
         set {
             if newValue != invisibleCharacterConfiguration.lineBreakSymbol {
@@ -258,7 +261,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var softLineBreakSymbol: String {
         get {
-            return invisibleCharacterConfiguration.softLineBreakSymbol
+            invisibleCharacterConfiguration.softLineBreakSymbol
         }
         set {
             if newValue != invisibleCharacterConfiguration.softLineBreakSymbol {
@@ -295,9 +298,18 @@ final class TextInputView: UIView, UITextInput {
             }
         }
     }
+    var gutterMinimumCharacterCount: Int = 1 {
+        didSet {
+            if gutterMinimumCharacterCount != oldValue {
+                gutterWidthService.gutterMinimumCharacterCount = gutterMinimumCharacterCount
+                layoutManager.setNeedsLayout()
+                setNeedsLayout()
+            }
+        }
+    }
     var textContainerInset: UIEdgeInsets {
         get {
-            return layoutManager.textContainerInset
+            layoutManager.textContainerInset
         }
         set {
             if newValue != layoutManager.textContainerInset {
@@ -312,7 +324,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var isLineWrappingEnabled: Bool {
         get {
-            return layoutManager.isLineWrappingEnabled
+            layoutManager.isLineWrappingEnabled
         }
         set {
             if newValue != layoutManager.isLineWrappingEnabled {
@@ -335,7 +347,7 @@ final class TextInputView: UIView, UITextInput {
         }
     }
     var gutterWidth: CGFloat {
-        return gutterWidthService.gutterWidth
+        gutterWidthService.gutterWidth
     }
     var lineHeightMultiplier: CGFloat = 1 {
         didSet {
@@ -382,7 +394,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var pageGuideColumn: Int {
         get {
-            return pageGuideController.column
+            pageGuideController.column
         }
         set {
             if newValue != pageGuideController.column {
@@ -392,11 +404,11 @@ final class TextInputView: UIView, UITextInput {
         }
     }
     private var estimatedLineHeight: CGFloat {
-        return theme.font.totalLineHeight * lineHeightMultiplier
+        theme.font.totalLineHeight * lineHeightMultiplier
     }
     var highlightedRanges: [HighlightedRange] {
         get {
-            return highlightService.highlightedRanges
+            highlightService.highlightedRanges
         }
         set {
             if newValue != highlightService.highlightedRanges {
@@ -411,7 +423,7 @@ final class TextInputView: UIView, UITextInput {
     weak var delegate: TextInputViewDelegate?
     var string: NSString {
         get {
-            return stringView.string
+            stringView.string
         }
         set {
             if newValue != stringView.string {
@@ -436,7 +448,7 @@ final class TextInputView: UIView, UITextInput {
     }
     var viewport: CGRect {
         get {
-            return layoutManager.viewport
+            layoutManager.viewport
         }
         set {
             if newValue != layoutManager.viewport {
@@ -458,11 +470,11 @@ final class TextInputView: UIView, UITextInput {
         }
     }
     var contentSize: CGSize {
-        return contentSizeService.contentSize
+        contentSizeService.contentSize
     }
     var selectedRange: NSRange? {
         get {
-            return _selectedRange
+            _selectedRange
         }
         set {
             if newValue != _selectedRange {
@@ -481,11 +493,11 @@ final class TextInputView: UIView, UITextInput {
         }
     }
     override var canBecomeFirstResponder: Bool {
-        return true
+        true
     }
     weak var gutterParentView: UIView? {
         get {
-            return layoutManager.gutterParentView
+            layoutManager.gutterParentView
         }
         set {
             layoutManager.gutterParentView = newValue
@@ -499,7 +511,7 @@ final class TextInputView: UIView, UITextInput {
         }
     }
     var gutterContainerView: UIView {
-        return layoutManager.gutterContainerView
+        layoutManager.gutterContainerView
     }
     private(set) var stringView = StringView() {
         didSet {
@@ -511,6 +523,7 @@ final class TextInputView: UIView, UITextInput {
                 layoutManager.stringView = stringView
                 indentController.stringView = stringView
                 lineMovementController.stringView = stringView
+                customTokenizer.stringView = stringView
             }
         }
     }
@@ -524,13 +537,15 @@ final class TextInputView: UIView, UITextInput {
                 caretRectService.lineManager = lineManager
                 selectionRectService.lineManager = lineManager
                 highlightService.lineManager = lineManager
+                customTokenizer.lineManager = lineManager
             }
         }
     }
     var viewHierarchyContainsCaret: Bool {
-        return textSelectionView?.subviews.count == 1
+        textSelectionView?.subviews.count == 1
     }
     var lineEndings: LineEnding = .lf
+    private(set) var isRestoringPreviouslyDeletedText = false
 
     // MARK: - Private
     private var languageMode: InternalLanguageMode = PlainTextInternalLanguageMode() {
@@ -558,7 +573,7 @@ final class TextInputView: UIView, UITextInput {
     private let invisibleCharacterConfiguration = InvisibleCharacterConfiguration()
     private var markedRange: NSRange? {
         get {
-            return layoutManager.markedRange
+            layoutManager.markedRange
         }
         set {
             layoutManager.markedRange = newValue
@@ -569,24 +584,21 @@ final class TextInputView: UIView, UITextInput {
     private var maximumLeadingCharacterPairComponentLength = 0
     private var textSelectionView: UIView? {
         if let klass = NSClassFromString("UITextSelectionView") {
-            for subview in subviews {
-                if subview.isKind(of: klass) {
-                    return subview
-                }
-            }
+            return subviews.first { $0.isKind(of: klass) }
+        } else {
+            return nil
         }
-        return nil
     }
     private var hasPendingFullLayout = false
     private let editMenuController = EditMenuController()
     private var notifyInputDelegateAboutSelectionChangeInLayoutSubviews = false
     private var notifyDelegateAboutSelectionChangeInLayoutSubviews = false
     private var didCallPositionFromPositionInDirectionWithOffset = false
+    private var hasDeletedTextWithPendingLayoutSubviews = false
     private var preserveUndoStackWhenSettingString = false
     private var cancellables: [AnyCancellable] = []
 
     // MARK: - Lifecycle
-    // swiftlint:disable:next function_body_length
     init(theme: Theme) {
         self.theme = theme
         lineManager = LineManager(stringView: stringView)
@@ -672,6 +684,7 @@ final class TextInputView: UIView, UITextInput {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        hasDeletedTextWithPendingLayoutSubviews = false
         layoutManager.layoutIfNeeded()
         layoutManager.layoutLineSelectionIfNeeded()
         layoutPageGuideIfNeeded()
@@ -696,8 +709,10 @@ final class TextInputView: UIView, UITextInput {
 
     override func paste(_ sender: Any?) {
         if let selectedTextRange = selectedTextRange, let string = UIPasteboard.general.string {
+            inputDelegate?.selectionWillChange(self)
             let preparedText = prepareTextForInsertion(string)
             replace(selectedTextRange, withText: preparedText)
+            inputDelegate?.selectionDidChange(self)
         }
     }
 
@@ -756,7 +771,7 @@ final class TextInputView: UIView, UITextInput {
     }
 
     func linePosition(at location: Int) -> LinePosition? {
-        return lineManager.linePosition(at: location)
+        lineManager.linePosition(at: location)
     }
 
     func setState(_ state: TextViewState, addUndoAction: Bool = false) {
@@ -765,6 +780,7 @@ final class TextInputView: UIView, UITextInput {
         stringView = state.stringView
         theme = state.theme
         languageMode = state.languageMode
+        lineControllerStorage.removeAllLineControllers()
         lineManager = state.lineManager
         lineManager.estimatedLineHeight = estimatedLineHeight
         layoutManager.languageMode = state.languageMode
@@ -843,11 +859,11 @@ final class TextInputView: UIView, UITextInput {
     }
 
     func detectIndentStrategy() -> DetectedIndentStrategy {
-        return languageMode.detectIndentStrategy()
+        languageMode.detectIndentStrategy()
     }
 
     func textPreview(containing range: NSRange) -> TextPreview? {
-        return layoutManager.textPreview(containing: range)
+        layoutManager.textPreview(containing: range)
     }
 
     func layoutLines(toLocation location: Int) {
@@ -1057,7 +1073,7 @@ extension TextInputView {
     }
 
     func caretRect(at location: Int) -> CGRect {
-        return caretRectService.caretRect(at: location, allowMovingCaretToNextLineFragment: true)
+        caretRectService.caretRect(at: location, allowMovingCaretToNextLineFragment: true)
     }
 
     func firstRect(for range: UITextRange) -> CGRect {
@@ -1072,9 +1088,15 @@ extension TextInputView {
 extension TextInputView {
     func insertText(_ text: String) {
         let preparedText = prepareTextForInsertion(text)
+        isRestoringPreviouslyDeletedText = hasDeletedTextWithPendingLayoutSubviews
+        hasDeletedTextWithPendingLayoutSubviews = false
+        defer {
+            isRestoringPreviouslyDeletedText = false
+        }
         // If there is no marked range or selected range then we fallback to appending text to the end of our string.
         let selectedRange = markedRange ?? selectedRange ?? NSRange(location: stringView.string.length, length: 0)
         guard shouldChangeText(in: selectedRange, replacementText: preparedText) else {
+            isRestoringPreviouslyDeletedText = false
             return
         }
         // If we're inserting text then we can't have a marked range. However, UITextInput doesn't always clear the marked range
@@ -1088,6 +1110,7 @@ extension TextInputView {
             delegate?.textInputViewDidChangeSelection(self)
         } else {
             replaceText(in: selectedRange, with: preparedText)
+            layoutIfNeeded()
             delegate?.textInputViewDidChangeSelection(self)
         }
     }
@@ -1105,6 +1128,13 @@ extension TextInputView {
         guard shouldChangeText(in: deleteRange, replacementText: "") else {
             return
         }
+        // Set a flag indicating that we have deleted text. This is reset in -layoutSubviews() but if this has not been reset before insertText() is called, then UIKit deleted characters prior to inserting combined characters. This happens when UIKit turns Korean characters into a single character. E.g. when typing ㅇ followed by ㅓ UIKit will perform the following operations:
+        // 1. Delete ㅇ.
+        // 2. Delete the character before ㅇ. I'm unsure why this is needed.
+        // 3. Insert the character that was previously before ㅇ.
+        // 4. Insert the ㅇ and ㅓ but combined into the single character delete ㅇ and then insert 어.
+        // We can detect this case in insertText() by checking if this variable is true.
+        hasDeletedTextWithPendingLayoutSubviews = true
         // Disable notifying delegate in layout subviews to prevent sending the selected range with length > 0 when deleting text. This aligns with the behavior of UITextView and was introduced to resolve issue #158: https://github.com/simonbs/Runestone/issues/158
         notifyDelegateAboutSelectionChangeInLayoutSubviews = false
         // Disable notifying input delegate in layout subviews to prevent issues when entering Korean text. This workaround is inspired by a dialog with Alexander Black (@lextar), developer of Textastic.
@@ -1122,10 +1152,9 @@ extension TextInputView {
             timedUndoManager.endUndoGrouping()
             timedUndoManager.beginUndoGrouping()
         }
-        // We've set shouldNotifyInputDelegateAboutSelectionChange to false so we must notify the input delegate ourselves.
-        inputDelegate?.selectionWillChange(self)
         replaceText(in: deleteRange, with: "", selectedRangeAfterUndo: selectedRangeAfterUndo)
-        inputDelegate?.selectionDidChange(self)
+        // Sending selection changed without calling the input delegate directly. This ensures that both inputting Korean letters and deleting entire words with Option+Backspace works properly.
+        sendSelectionChangedToTextSelectionView()
         if isDeletingMultipleCharacters {
             timedUndoManager.endUndoGrouping()
         }
@@ -1166,7 +1195,7 @@ extension TextInputView {
     }
 
     func text(in range: NSRange) -> String? {
-        return stringView.substring(in: range)
+        stringView.substring(in: range)
     }
 
     private func setStringWithUndoAction(_ newString: NSString) {
@@ -1234,7 +1263,6 @@ extension TextInputView {
         lineChangeSet.union(with: languageModeLineChangeSet)
         applyLineChangesToLayoutManager(lineChangeSet)
         let updatedTextEditResult = TextEditResult(textChange: textChange, lineChangeSet: lineChangeSet)
-        layoutIfNeeded()
         delegate?.textInputViewDidChange(self)
         if updatedTextEditResult.didAddOrRemoveLines {
             delegate?.textInputViewDidInvalidateContentSize(self)
@@ -1260,7 +1288,7 @@ extension TextInputView {
     }
 
     private func shouldChangeText(in range: NSRange, replacementText text: String) -> Bool {
-        return delegate?.textInputView(self, shouldChangeTextIn: range, replacementText: text) ?? true
+        delegate?.textInputView(self, shouldChangeTextIn: range, replacementText: text) ?? true
     }
 
     private func addUndoOperation(replacing range: NSRange,
@@ -1314,6 +1342,13 @@ extension TextInputView {
         } else {
             selectedRange = nil
         }
+    }
+
+    private func sendSelectionChangedToTextSelectionView() {
+        // The only way I've found to get the selection change to be reflected properly while still supporting Korean, Chinese, and deleting words with Option+Backspace is to call a private API in some cases. However, as pointed out by Alexander Blach in the following PR, there is another workaround to the issue.
+        // When passing nil to the input delete, the text selection is update but the text input ignores it.
+        // Even the Swift Playgrounds app does not get this right for all languages in all cases, so there seems to be some workarounds needed to due bugs in internal classes in UIKit that communicate with instances of UITextInput.
+        inputDelegate?.selectionDidChange(nil)
     }
 }
 
@@ -1374,12 +1409,13 @@ extension TextInputView {
         guard shouldChangeText(in: range, replacementText: markedText) else {
             return
         }
-        notifyInputDelegateAboutSelectionChangeInLayoutSubviews = true
         markedRange = markedText.isEmpty ? nil : NSRange(location: range.location, length: markedText.utf16.count)
         replaceText(in: range, with: markedText)
         // The selected range passed to setMarkedText(_:selectedRange:) is local to the marked range.
         let preferredSelectedRange = NSRange(location: range.location + selectedRange.location, length: selectedRange.length)
+        inputDelegate?.selectionWillChange(self)
         _selectedRange = safeSelectionRange(from: preferredSelectedRange)
+        inputDelegate?.selectionDidChange(self)
         delegate?.textInputViewDidUpdateMarkedRange(self)
     }
 
@@ -1515,7 +1551,7 @@ extension TextInputView {
 // MARK: - Writing Direction
 extension TextInputView {
     func baseWritingDirection(for position: UITextPosition, in direction: UITextStorageDirection) -> NSWritingDirection {
-        return .natural
+        .natural
     }
 
     func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {}
@@ -1524,7 +1560,7 @@ extension TextInputView {
 // MARK: - UIEditMenuInteraction
 extension TextInputView {
     func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        return editMenuController.editMenu(for: textRange, suggestedActions: suggestedActions)
+        editMenuController.editMenu(for: textRange, suggestedActions: suggestedActions)
     }
 
     func presentEditMenuForText(in range: NSRange) {
@@ -1538,7 +1574,7 @@ extension TextInputView {
     }
 
     private func highlightedRange(for range: NSRange) -> HighlightedRange? {
-        return highlightedRanges.first { $0.range == range }
+        highlightedRanges.first { $0.range == range }
     }
 }
 
@@ -1613,7 +1649,7 @@ extension TextInputView: IndentControllerDelegate {
 // MARK: - EditMenuControllerDelegate
 extension TextInputView: EditMenuControllerDelegate {
     func editMenuController(_ controller: EditMenuController, caretRectAt location: Int) -> CGRect {
-        return caretRectService.caretRect(at: location, allowMovingCaretToNextLineFragment: false)
+        caretRectService.caretRect(at: location, allowMovingCaretToNextLineFragment: false)
     }
 
     func editMenuControllerShouldReplaceText(_ controller: EditMenuController) {
@@ -1621,14 +1657,14 @@ extension TextInputView: EditMenuControllerDelegate {
     }
 
     func editMenuController(_ controller: EditMenuController, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool {
-        return delegate?.textInputView(self, canReplaceTextIn: highlightedRange) ?? false
+        delegate?.textInputView(self, canReplaceTextIn: highlightedRange) ?? false
     }
 
     func editMenuController(_ controller: EditMenuController, highlightedRangeFor range: NSRange) -> HighlightedRange? {
-        return highlightedRange(for: range)
+        highlightedRange(for: range)
     }
 
     func selectedRange(for controller: EditMenuController) -> NSRange? {
-        return selectedRange
+        selectedRange
     }
 }

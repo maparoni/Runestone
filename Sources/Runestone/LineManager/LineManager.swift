@@ -4,13 +4,13 @@ import Foundation
 struct DocumentLineNodeID: RedBlackTreeNodeID, Hashable {
     let id = UUID()
     var rawValue: String {
-        return id.uuidString
+        id.uuidString
     }
 }
 
 extension DocumentLineNodeID: CustomDebugStringConvertible {
     var debugDescription: String {
-        return rawValue
+        rawValue
     }
 }
 
@@ -20,7 +20,7 @@ typealias DocumentLineNode = RedBlackTreeNode<DocumentLineNodeID, Int, DocumentL
 final class LineManager {
     var stringView: StringView
     var lineCount: Int {
-        return documentLineTree.nodeTotalCount
+        documentLineTree.nodeTotalCount
     }
     var contentHeight: CGFloat {
         let rightMost = documentLineTree.root.rightMost
@@ -28,10 +28,10 @@ final class LineManager {
     }
     var estimatedLineHeight: CGFloat = 12
     var firstLine: DocumentLineNode {
-        return documentLineTree.root.leftMost
+        documentLineTree.root.leftMost
     }
     var lastLine: DocumentLineNode {
-        return documentLineTree.root.rightMost
+        documentLineTree.root.rightMost
     }
     // When rebuilding, and only when rebuilding, the tree we keep track of the longest line.
     // This helps the text editor to determine the width of the content. The "initial" in the name implies
@@ -48,7 +48,6 @@ final class LineManager {
         rootData.node = documentLineTree.root
     }
 
-    // swiftlint:disable:next function_body_length
     func rebuild() {
         // Reset the tree so we only have a single line.
         let rootData = DocumentLineNodeData(lineHeight: estimatedLineHeight)
@@ -219,21 +218,21 @@ final class LineManager {
     }
 
     func line(containingYOffset yOffset: CGFloat) -> DocumentLineNode? {
-        return documentLineTree.node(containingLocation: yOffset,
-                                     minimumValue: 0,
-                                     valueKeyPath: \.data.lineHeight,
-                                     totalValueKeyPath: \.data.totalLineHeight)
+        documentLineTree.node(containingLocation: yOffset,
+                              minimumValue: 0,
+                              valueKeyPath: \.data.lineHeight,
+                              totalValueKeyPath: \.data.totalLineHeight)
     }
 
     func line(containingByteAt byteIndex: ByteCount) -> DocumentLineNode? {
-        return documentLineTree.node(containingLocation: byteIndex,
-                                     minimumValue: ByteCount(0),
-                                     valueKeyPath: \.data.byteCount,
-                                     totalValueKeyPath: \.data.nodeTotalByteCount)
+        documentLineTree.node(containingLocation: byteIndex,
+                              minimumValue: ByteCount(0),
+                              valueKeyPath: \.data.byteCount,
+                              totalValueKeyPath: \.data.nodeTotalByteCount)
     }
 
     func line(atRow row: Int) -> DocumentLineNode {
-        return documentLineTree.node(atIndex: row)
+        documentLineTree.node(atIndex: row)
     }
 
     @discardableResult
@@ -278,7 +277,7 @@ final class LineManager {
     }
 
     func createLineIterator() -> RedBlackTreeIterator<DocumentLineNodeID, Int, DocumentLineNodeData> {
-        return RedBlackTreeIterator(tree: documentLineTree)
+        RedBlackTreeIterator(tree: documentLineTree)
     }
 }
 
@@ -369,7 +368,7 @@ extension DocumentLineTree {
 
 extension DocumentLineNode {
     var yPosition: CGFloat {
-        return tree.yPosition(of: self)
+        tree.yPosition(of: self)
     }
 
     var range: ClosedRange<Int> {

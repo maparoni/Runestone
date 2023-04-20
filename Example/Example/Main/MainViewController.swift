@@ -61,10 +61,16 @@ private extension MainViewController {
 #endif
 
     private func setupTextView() {
-        let text = UserDefaults.standard.text ?? ""
+        var text = ""
+        if !ProcessInfo.processInfo.disableTextPersistance, let persistedText = UserDefaults.standard.text {
+            text = persistedText
+        }
         let themeSetting = UserDefaults.standard.theme
         let theme = themeSetting.makeTheme()
         let state = TextViewState(text: text, theme: theme, language: .javaScript)
+        if ProcessInfo.processInfo.useCRLFLineEndings {
+            contentView.textView.lineEndings = .crlf
+        }
         contentView.textView.editorDelegate = self
         contentView.textView.setState(state)
     }
@@ -151,7 +157,7 @@ private extension MainViewController {
     }
 
     private func makeThemeMenuElements() -> [UIMenuElement] {
-        return [
+        [
             UIAction(title: "Theme") { [weak self] _ in
                 self?.presentThemePicker()
             }
@@ -196,20 +202,20 @@ private extension MainViewController {
     }
 
     private func updateInsets(keyboardHeight: CGFloat) {
-        let textView = contentView.textView
-        textView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
-        textView.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
-        textView.automaticScrollInset = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
+        contentView.textView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
+        contentView.textView.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: keyboardHeight, right: 0)
     }
 }
 
 extension MainViewController: TextViewDelegate {
     func textViewDidChange(_ textView: TextView) {
-        UserDefaults.standard.text = textView.text
+        if !ProcessInfo.processInfo.disableTextPersistance {
+            UserDefaults.standard.text = textView.text
+        }
     }
 
     func textView(_ textView: TextView, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool {
-        return true
+        true
     }
 }
 

@@ -2,7 +2,7 @@ import Foundation
 
 extension NSString {
     var byteCount: ByteCount {
-        return ByteCount(length * 2)
+        ByteCount(length * 2)
     }
 
     func getAllBytes(withEncoding encoding: String.Encoding, usedLength: inout Int) -> UnsafePointer<Int8>? {
@@ -39,7 +39,7 @@ extension NSString {
         let defaultRange = rangeOfComposedCharacterSequences(for: range)
         let candidateCRLFRange = NSRange(location: defaultRange.location - 1, length: 2)
         if candidateCRLFRange.location >= 0 && candidateCRLFRange.upperBound <= length && isCRLFLineEnding(in: candidateCRLFRange) {
-            return candidateCRLFRange
+            return NSRange(location: defaultRange.location - 1, length: defaultRange.length + 1)
         } else {
             return defaultRange
         }
@@ -48,6 +48,6 @@ extension NSString {
 
 private extension NSString {
     private func isCRLFLineEnding(in range: NSRange) -> Bool {
-        return substring(with: range) == Symbol.carriageReturnLineFeed
+        substring(with: range) == Symbol.carriageReturnLineFeed
     }
 }

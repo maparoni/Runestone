@@ -1,11 +1,12 @@
 import UIKit
 
 final class TextInputStringTokenizer: UITextInputStringTokenizer {
-    private let stringView: StringView
-    private let lineManager: LineManager
+    var lineManager: LineManager
+    var stringView: StringView
+
     private let lineControllerStorage: LineControllerStorage
     private var newlineCharacters: [Character] {
-        return [Symbol.Character.lineFeed, Symbol.Character.carriageReturn, Symbol.Character.carriageReturnLineFeed]
+        [Symbol.Character.lineFeed, Symbol.Character.carriageReturn, Symbol.Character.carriageReturnLineFeed]
     }
 
     init(textInput: UIResponder & UITextInput, stringView: StringView, lineManager: LineManager, lineControllerStorage: LineControllerStorage) {
@@ -30,7 +31,7 @@ final class TextInputStringTokenizer: UITextInputStringTokenizer {
     override func isPosition(_ position: UITextPosition,
                              withinTextUnit granularity: UITextGranularity,
                              inDirection direction: UITextDirection) -> Bool {
-        return super.isPosition(position, withinTextUnit: granularity, inDirection: direction)
+        super.isPosition(position, withinTextUnit: granularity, inDirection: direction)
     }
 
     override func position(from position: UITextPosition,
@@ -50,7 +51,7 @@ final class TextInputStringTokenizer: UITextInputStringTokenizer {
     override func rangeEnclosingPosition(_ position: UITextPosition,
                                          with granularity: UITextGranularity,
                                          inDirection direction: UITextDirection) -> UITextRange? {
-        return super.rangeEnclosingPosition(position, with: granularity, inDirection: direction)
+        super.rangeEnclosingPosition(position, with: granularity, inDirection: direction)
     }
 }
 
@@ -67,6 +68,9 @@ private extension TextInputStringTokenizer {
         let lineLocation = line.location
         let lineLocalLocation = location - lineLocation
         let lineController = lineControllerStorage.getOrCreateLineController(for: line)
+        guard lineLocalLocation >= 0 && lineLocalLocation <= line.data.totalLength else {
+            return false
+        }
         guard let lineFragmentNode = lineController.lineFragmentNode(containingCharacterAt: lineLocalLocation) else {
             return false
         }
@@ -263,7 +267,7 @@ private extension TextInputStringTokenizer {
 
 private extension UITextDirection {
     var isForward: Bool {
-        return rawValue == UITextStorageDirection.forward.rawValue
+        rawValue == UITextStorageDirection.forward.rawValue
         || rawValue == UITextLayoutDirection.right.rawValue
         || rawValue == UITextLayoutDirection.down.rawValue
     }
@@ -271,6 +275,6 @@ private extension UITextDirection {
 
 private extension CharacterSet {
     func contains(_ character: Character) -> Bool {
-        return character.unicodeScalars.allSatisfy(contains(_:))
+        character.unicodeScalars.allSatisfy(contains(_:))
     }
 }

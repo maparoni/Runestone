@@ -26,6 +26,8 @@ public protocol Theme: AnyObject {
     var invisibleCharactersColor: UIColor { get }
     /// Color of the hairline next to the page guide.
     var pageGuideHairlineColor: UIColor { get }
+    /// Width of the hairline next to the page guide.
+    var pageGuideHairlineWidth: CGFloat { get }
     /// Background color of the page guide.
     var pageGuideBackgroundColor: UIColor { get }
     /// Background color of marked text. Text will be marked when writing certain languages, for example Chinese and Japanese.
@@ -66,27 +68,27 @@ public protocol Theme: AnyObject {
 
 public extension Theme {
     var gutterHairlineWidth: CGFloat {
-        return 1 / UIScreen.main.scale
+        1 / UIScreen.main.scale
     }
 
     var pageGuideHairlineWidth: CGFloat {
-        return 1 / UIScreen.main.scale
+        1 / UIScreen.main.scale
     }
 
     var markedTextBackgroundCornerRadius: CGFloat {
-        return 0
+        0
     }
 
     func font(for highlightName: String) -> UIFont? {
-        return nil
+        nil
     }
 
     func fontTraits(for highlightName: String) -> FontTraits {
-        return []
+        []
     }
 
     func shadow(for highlightName: String) -> NSShadow? {
-        return nil
+        nil
     }
 
 #if compiler(>=5.7)
