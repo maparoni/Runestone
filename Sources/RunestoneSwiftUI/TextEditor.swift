@@ -86,7 +86,9 @@ public class TextEditorCoordinator: ObservableObject {
   func configure(text: Binding<String>, theme: Theme, language: TreeSitterLanguage?, completion: @escaping (TextViewState) -> Void) {
     guard self.text?.wrappedValue != text.wrappedValue else { return }
     
-    DispatchQueue.global(qos: .background).async {
+    self.text = text
+    
+    DispatchQueue.global(qos: .userInteractive).async {
       let state: TextViewState
       if let language = language {
         state = TextViewState(text: text.wrappedValue, theme: theme, language: language)
