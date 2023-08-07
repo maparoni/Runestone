@@ -67,6 +67,10 @@ public protocol Theme: AnyObject {
 }
 
 public extension Theme {
+#if os(visionOS)
+  var gutterHairlineWidth: CGFloat { 0.5 }
+  var pageGuideHairlineWidth: CGFloat { 0.5 }
+#else
     var gutterHairlineWidth: CGFloat {
         1 / UIScreen.main.scale
     }
@@ -74,7 +78,8 @@ public extension Theme {
     var pageGuideHairlineWidth: CGFloat {
         1 / UIScreen.main.scale
     }
-
+#endif
+  
     var markedTextBackgroundCornerRadius: CGFloat {
         0
     }
