@@ -1,13 +1,18 @@
 import UIKit
 
 final class PageGuideView: UIView {
-    var hairlineWidth: CGFloat = 1 / UIScreen.main.scale {
+#if os(visionOS)
+  var hairlineWidth: CGFloat = 0.5
+#else
+  var hairlineWidth: CGFloat = 1 / UIScreen.main.scale {
         didSet {
             if hairlineWidth != oldValue {
                 setNeedsLayout()
             }
         }
     }
+#endif
+  
     var hairlineColor: UIColor? {
         get {
             hairlineView.backgroundColor

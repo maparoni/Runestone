@@ -197,6 +197,8 @@ open class TextView: UIScrollView {
             textInputView.selectedTextRange = newValue
         }
     }
+  
+#if !os(visionOS)
     /// The custom input accessory view to display when the receiver becomes the first responder.
     override public var inputAccessoryView: UIView? {
         get {
@@ -214,6 +216,8 @@ open class TextView: UIScrollView {
     override public var inputAssistantItem: UITextInputAssistantItem {
         textInputView.inputAssistantItem
     }
+#endif
+  
     /// Returns a Boolean value indicating whether this object can become the first responder.
     override public var canBecomeFirstResponder: Bool {
         !textInputView.isFirstResponder && isEditable
@@ -606,7 +610,9 @@ open class TextView: UIScrollView {
 #endif
     private let tapGestureRecognizer = QuickTapGestureRecognizer()
     private var _inputAccessoryView: UIView?
+#if !os(visionOS)
     private let _inputAssistantItem = UITextInputAssistantItem()
+#endif
     private var isPerformingNonEditableTextInteraction = false
     private var delegateAllowsEditingToBegin: Bool {
         guard isEditable else {
