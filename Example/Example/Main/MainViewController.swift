@@ -1,28 +1,37 @@
 import Runestone
 import RunestoneJavaScriptLanguage
+import SwiftUI
 import UIKit
 
 final class MainViewController: UIViewController {
     override var textInputContextIdentifier: String? {
         // Returning a unique identifier makes iOS remember the user's selection of keyboard.
-        return "RunestoneExample.Main"
+        "RunestoneExample.Main"
     }
 
     private let contentView = MainView()
+    #if os(iOS)
     private let toolsView: KeyboardToolsView
+    #endif
 
     init() {
+        #if os(iOS)
         toolsView = KeyboardToolsView(textView: contentView.textView)
+        #endif
         super.init(nibName: nil, bundle: nil)
         title = "Example"
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(keyboardWillChangeFrame(_:)),
-                                               name: UIApplication.keyboardWillChangeFrameNotification,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(keyboardWillHide(_:)),
-                                               name: UIApplication.keyboardWillHideNotification,
-                                               object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillChangeFrame(_:)),
+            name: UIApplication.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(_:)),
+            name: UIApplication.keyboardWillHideNotification,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -35,12 +44,23 @@ final class MainViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-#if compiler(>=5.7)
         if #available(iOS 16, *) {
             contentView.textView.isFindInteractionEnabled = true
         }
-#endif
+        #if os(iOS)
         contentView.textView.inputAccessoryView = toolsView
+        #endif
+        #if compiler(>=5.9) && os(visionOS)
+        ornaments = [
+            UIHostingOrnament(sceneAnchor: .topTrailing, contentAlignment: .bottomTrailing) {
+                HStack {
+                    SwiftUIMenuButton(selectionHandler: self)
+                        .glassBackgroundEffect()
+                }
+                .padding(.trailing)
+            }
+        ]
+        #endif
         setupMenuButton()
         setupTextView()
         updateTextViewSettings()
@@ -48,7 +68,6 @@ final class MainViewController: UIViewController {
 }
 
 private extension MainViewController {
-#if compiler(>=5.7)
     @available(iOS 16, *)
     @objc private func presentFind() {
         contentView.textView.findInteraction?.presentFindNavigator(showingReplace: false)
@@ -58,7 +77,6 @@ private extension MainViewController {
     @objc private func presentFindAndReplace() {
         contentView.textView.findInteraction?.presentFindNavigator(showingReplace: true)
     }
-#endif
 
     private func setupTextView() {
         var text = ""
@@ -83,85 +101,8 @@ private extension MainViewController {
     }
 
     private func setupMenuButton() {
-        let menu = UIMenu(children: makeFeaturesMenuElements() + makeSettingsMenuElements() + makeThemeMenuElements())
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: menu)
-    }
-
-    private func makeFeaturesMenuElements() -> [UIMenuElement] {
-        var menuElements: [UIMenuElement] = []
-#if compiler(>=5.7)
-        if #available(iOS 16, *) {
-            menuElements += [
-                UIMenu(options: .displayInline, children: [
-                    UIAction(title: "Find") { [weak self] _ in
-                        self?.presentFind()
-                    },
-                    UIAction(title: "Find and Replace") { [weak self] _ in
-                        self?.presentFindAndReplace()
-                    }
-                ])
-            ]
-        }
-#endif
-        menuElements += [
-            UIAction(title: "Go to Line") { [weak self] _ in
-                self?.presentGoToLineAlert()
-            }
-        ]
-        return menuElements
-    }
-
-    private func makeSettingsMenuElements() -> [UIMenuElement] {
-        let settings = UserDefaults.standard
-        return [
-            UIMenu(options: .displayInline, children: [
-                UIAction(title: "Show Line Numbers", state: settings.showLineNumbers ? .on : .off) { [weak self] _ in
-                    settings.showLineNumbers.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                },
-                UIAction(title: "Show Page Guide", state: settings.showPageGuide ? .on : .off) { [weak self] _ in
-                    settings.showPageGuide.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                },
-                UIAction(title: "Show Invisible Characters", state: settings.showInvisibleCharacters ? .on : .off) { [weak self] _ in
-                    settings.showInvisibleCharacters.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                },
-                UIAction(title: "Wrap Lines", state: settings.wrapLines ? .on : .off) { [weak self] _ in
-                    settings.wrapLines.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                },
-                UIAction(title: "Highlight Selected Line", state: settings.highlightSelectedLine ? .on : .off) { [weak self] _ in
-                    settings.highlightSelectedLine.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                }
-            ]),
-            UIMenu(options: .displayInline, children: [
-                UIAction(title: "Allow Editing", state: settings.isEditable ? .on : .off) { [weak self] _ in
-                    settings.isEditable.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                },
-                UIAction(title: "Allow Selection", state: settings.isSelectable ? .on : .off) { [weak self] _ in
-                    settings.isSelectable.toggle()
-                    self?.updateTextViewSettings()
-                    self?.setupMenuButton()
-                }
-            ])
-        ]
-    }
-
-    private func makeThemeMenuElements() -> [UIMenuElement] {
-        [
-            UIAction(title: "Theme") { [weak self] _ in
-                self?.presentThemePicker()
-            }
-        ]
+        let menuButton = MenuButton.makeConfigured(with: self)
+        navigationItem.rightBarButtonItem = UIBarButtonItem(customView: menuButton)
     }
 
     private func presentGoToLineAlert() {
@@ -216,6 +157,47 @@ extension MainViewController: TextViewDelegate {
 
     func textView(_ textView: TextView, canReplaceTextIn highlightedRange: HighlightedRange) -> Bool {
         true
+    }
+}
+
+extension MainViewController: MenuSelectionHandler {
+    // swiftlint:disable:next cyclomatic_complexity
+    func handleSelection(of menuItem: MenuItem) {
+        switch menuItem {
+        case .presentFind:
+            if #available(iOS 16, *) {
+                presentFind()
+            }
+        case .presentFindAndReplace:
+            if #available(iOS 16, *) {
+                presentFindAndReplace()
+            }
+        case .presentGoToLine:
+            presentGoToLineAlert()
+        case .presentThemePicker:
+            presentThemePicker()
+        case .toggleEditable:
+            UserDefaults.standard.isEditable.toggle()
+            updateTextViewSettings()
+        case .toggleInvisibleCharacters:
+            UserDefaults.standard.showInvisibleCharacters.toggle()
+            updateTextViewSettings()
+        case .toggleHighlightSelectedLine:
+            UserDefaults.standard.highlightSelectedLine.toggle()
+            updateTextViewSettings()
+        case .toggleLineNumbers:
+            UserDefaults.standard.showLineNumbers.toggle()
+            updateTextViewSettings()
+        case .togglePageGuide:
+            UserDefaults.standard.showPageGuide.toggle()
+            updateTextViewSettings()
+        case .toggleSelectable:
+            UserDefaults.standard.isSelectable.toggle()
+            updateTextViewSettings()
+        case .toggleWrapLines:
+            UserDefaults.standard.wrapLines.toggle()
+            updateTextViewSettings()
+        }
     }
 }
 

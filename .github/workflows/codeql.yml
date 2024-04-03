@@ -1,38 +1,56 @@
 name: "CodeQL"
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    branches: [ "main" ]
-
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 env:
-  CODEQL_ENABLE_EXPERIMENTAL_FEATURES_SWIFT: true
-
+  XCODEBUILD_DESTINATION: iPhone 15 Pro
+  XCODEBUILD_OS: 17.2
 jobs:
   analyze:
     name: Analyze
-    runs-on: macos-latest
-    
+    runs-on: macos-14
     permissions:
       security-events: write
-
     strategy:
       fail-fast: false
       matrix:
-        language: [ "swift" ]
-
+        language: [ "swift", "c-cpp" ]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check for changed files
+        uses: dorny/paths-filter@v3
+        id: changes
         with:
-          submodules: recursive
+          filters: |
+            src:
+              - 'Example/**'
+              - 'Sources/**'
+              - 'Tests/**'
+              - 'UITests/**'
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        if: steps.changes.outputs.src == 'true'
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
       - name: Build
-        run: xcodebuild -scheme Runestone -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14'
+        if: steps.changes.outputs.src == 'true'
+        run: |
+          set -o pipefail &&\
+          xcodebuild\
+            -scheme Runestone\
+            -sdk iphonesimulator\
+            -destination "platform=iOS Simulator,name=${{ env.XCODEBUILD_DESTINATION }},OS=${{ env.XCODEBUILD_OS }}"\
+          | xcbeautify --renderer github-actions
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
+        if: steps.changes.outputs.src == 'true'
         with:
           category: "/language:${{matrix.language}}"

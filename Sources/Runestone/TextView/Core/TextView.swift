@@ -185,7 +185,7 @@ open class TextView: UIScrollView {
             }
         }
         set {
-            textInputView.selectedRange = newValue
+            textInputView.selectedTextRange = IndexedRange(newValue)
         }
     }
     /// The current selection range of the text view as a UITextRange.
@@ -197,8 +197,7 @@ open class TextView: UIScrollView {
             textInputView.selectedTextRange = newValue
         }
     }
-  
-#if !os(visionOS)
+    #if compiler(<5.9) || !os(visionOS)
     /// The custom input accessory view to display when the receiver becomes the first responder.
     override public var inputAccessoryView: UIView? {
         get {
@@ -212,12 +211,13 @@ open class TextView: UIScrollView {
             _inputAccessoryView = newValue
         }
     }
+    #endif
+    #if compiler(<5.9) || !os(visionOS)
     /// The input assistant to use when configuring the keyboard's shortcuts bar.
     override public var inputAssistantItem: UITextInputAssistantItem {
         textInputView.inputAssistantItem
     }
-#endif
-  
+    #endif
     /// Returns a Boolean value indicating whether this object can become the first responder.
     override public var canBecomeFirstResponder: Bool {
         !textInputView.isFirstResponder && isEditable
@@ -525,12 +525,6 @@ open class TextView: UIScrollView {
             }
         }
     }
-    /// The length of the line that was longest when opening the document.
-    ///
-    /// This will return nil if the line is no longer available. The value will not be kept updated as the text is changed. The value can be used to determine if a document contains a very long line in which case the performance may be degraded when editing the line.
-    public var lengthOfInitallyLongestLine: Int? {
-        textInputView.lineManager.initialLongestLine?.data.totalLength
-    }
     /// Ranges in the text to be highlighted. The color defined by the background will be drawen behind the text.
     public var highlightedRanges: [HighlightedRange] {
         get {
@@ -574,7 +568,6 @@ open class TextView: UIScrollView {
     }
     /// When enabled the text view will present a menu with actions actions such as Copy and Replace after navigating to a highlighted range.
     public var showMenuAfterNavigatingToHighlightedRange = true
-#if compiler(>=5.7)
     /// A boolean value that enables a text view’s built-in find interaction.
     ///
     /// After enabling the find interaction, use [`presentFindNavigator(showingReplace:)`](https://developer.apple.com/documentation/uikit/uifindinteraction/3975832-presentfindnavigator) on <doc:findInteraction> to present the find navigator.
@@ -596,23 +589,17 @@ open class TextView: UIScrollView {
     public var findInteraction: UIFindInteraction? {
         textSearchingHelper.findInteraction
     }
-#endif
 
     private let textInputView: TextInputView
     private let editableTextInteraction = UITextInteraction(for: .editable)
     private let nonEditableTextInteraction = UITextInteraction(for: .nonEditable)
-#if compiler(>=5.7)
     @available(iOS 16.0, *)
     private var editMenuInteraction: UIEditMenuInteraction? {
         _editMenuInteraction as? UIEditMenuInteraction
     }
     private var _editMenuInteraction: Any?
-#endif
     private let tapGestureRecognizer = QuickTapGestureRecognizer()
     private var _inputAccessoryView: UIView?
-#if !os(visionOS)
-    private let _inputAssistantItem = UITextInputAssistantItem()
-#endif
     private var isPerformingNonEditableTextInteraction = false
     private var delegateAllowsEditingToBegin: Bool {
         guard isEditable else {
@@ -1250,6 +1237,12 @@ private extension TextView {
             isInputAccessoryViewEnabled = true
             textInputView.removeInteraction(nonEditableTextInteraction)
             textInputView.addInteraction(editableTextInteraction)
+            #if compiler(>=5.9)
+            if #available(iOS 17, *) {
+                // Workaround a bug where the caret does not appear until the user taps again on iOS 17 (FB12622609).
+                textInputView.sbs_textSelectionDisplayInteraction?.isActivated = true
+            }
+            #endif
         }
     }
 
@@ -1402,6 +1395,12 @@ extension TextView: TextInputViewDelegate {
             if !view.viewHierarchyContainsCaret && self.editableTextInteraction.view != nil {
                 view.removeInteraction(self.editableTextInteraction)
                 view.addInteraction(self.editableTextInteraction)
+                #if compiler(>=5.9)
+                if #available(iOS 17, *) {
+                    self.textInputView.sbs_textSelectionDisplayInteraction?.isActivated = true
+                    self.textInputView.sbs_textSelectionDisplayInteraction?.sbs_enableCursorBlinks()
+                }
+                #endif
             }
         }
     }

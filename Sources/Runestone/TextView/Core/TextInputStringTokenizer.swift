@@ -3,6 +3,10 @@ import UIKit
 final class TextInputStringTokenizer: UITextInputStringTokenizer {
     var lineManager: LineManager
     var stringView: StringView
+    // Used to ensure we can workaround bug where multi-stage input, like when entering Korean text
+    // does not work properly. If we do not treat navigation between word boundies as a special case then
+    // navigating with Shift + Option + Arrow Keys followed by Shift + Arrow Keys will not work correctly.
+    var didCallPositionFromPositionToWordBoundary = false
 
     private let lineControllerStorage: LineControllerStorage
     private var newlineCharacters: [Character] {
@@ -28,12 +32,6 @@ final class TextInputStringTokenizer: UITextInputStringTokenizer {
         }
     }
 
-    override func isPosition(_ position: UITextPosition,
-                             withinTextUnit granularity: UITextGranularity,
-                             inDirection direction: UITextDirection) -> Bool {
-        super.isPosition(position, withinTextUnit: granularity, inDirection: direction)
-    }
-
     override func position(from position: UITextPosition,
                            toBoundary granularity: UITextGranularity,
                            inDirection direction: UITextDirection) -> UITextPosition? {
@@ -46,12 +44,6 @@ final class TextInputStringTokenizer: UITextInputStringTokenizer {
         } else {
             return super.position(from: position, toBoundary: granularity, inDirection: direction)
         }
-    }
-
-    override func rangeEnclosingPosition(_ position: UITextPosition,
-                                         with granularity: UITextGranularity,
-                                         inDirection direction: UITextDirection) -> UITextRange? {
-        super.rangeEnclosingPosition(position, with: granularity, inDirection: direction)
     }
 }
 
@@ -129,7 +121,7 @@ private extension TextInputStringTokenizer {
     private func isPosition(_ position: UITextPosition, atParagraphBoundaryInDirection direction: UITextDirection) -> Bool {
         // I can't seem to make Ctrl+A, Ctrl+E, Cmd+Left, and Cmd+Right work properly if this function returns anything but false.
         // I've tried various ways of determining the paragraph boundary but UIKit doesn't seem to be happy with anything I come up with ultimately leading to incorrect keyboard navigation. I haven't yet found any drawbacks to returning false in all cases.
-        return false
+        false
     }
 
     private func position(from position: UITextPosition, toParagraphBoundaryInDirection direction: UITextDirection) -> UITextPosition? {
@@ -218,6 +210,7 @@ private extension TextInputStringTokenizer {
         guard let indexedPosition = position as? IndexedPosition else {
             return nil
         }
+        didCallPositionFromPositionToWordBoundary = true
         let location = indexedPosition.index
         let alphanumerics = CharacterSet.alphanumerics
         if direction.isForward {
