@@ -1,18 +1,13 @@
 import UIKit
 
 final class PageGuideView: UIView {
-#if os(visionOS)
-  var hairlineWidth: CGFloat = 0.5
-#else
-  var hairlineWidth: CGFloat = 1 / UIScreen.main.scale {
+    var hairlineWidth: CGFloat {
         didSet {
             if hairlineWidth != oldValue {
                 setNeedsLayout()
             }
         }
     }
-#endif
-  
     var hairlineColor: UIColor? {
         get {
             hairlineView.backgroundColor
@@ -25,6 +20,7 @@ final class PageGuideView: UIView {
     private let hairlineView = UIView()
 
     override init(frame: CGRect) {
+        self.hairlineWidth = hairlineLength
         super.init(frame: frame)
         isUserInteractionEnabled = false
         hairlineView.isUserInteractionEnabled = false

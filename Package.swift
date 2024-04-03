@@ -13,35 +13,23 @@ let package = Package(
         .library(name: "Runestone", targets: ["Runestone"]),
         .library(name: "RunestoneSwiftUI", targets: ["RunestoneSwiftUI"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/tree-sitter/tree-sitter", .upToNextMinor(from: "0.20.9"))
+    ],
     targets: [
-        .target(name: "Runestone",
-                dependencies: ["TreeSitter"],
-                resources: [.process("TextView/Appearance/Theme.xcassets")]),
+        .target(name: "Runestone", dependencies: [
+            .product(name: "TreeSitter", package: "tree-sitter")
+        ], resources: [
+            .copy("PrivacyInfo.xcprivacy"),
+            .process("TextView/Appearance/Theme.xcassets")
+        ]),
         .target(name: "RunestoneSwiftUI", dependencies: ["Runestone"]),
-        .target(name: "TreeSitter",
-                path: "tree-sitter/lib",
-                exclude: [
-                    "binding_rust",
-                    "binding_web",
-                    "Cargo.toml",
-                    "README.md",
-                    "src/unicode/README.md",
-                    "src/unicode/LICENSE",
-                    "src/unicode/ICU_SHA",
-                    "src/get_changed_ranges.c",
-                    "src/tree_cursor.c",
-                    "src/stack.c",
-                    "src/node.c",
-                    "src/lexer.c",
-                    "src/parser.c",
-                    "src/language.c",
-                    "src/alloc.c",
-                    "src/subtree.c",
-                    "src/tree.c",
-                    "src/query.c"
-                ],
-                sources: ["src/lib.c"]),
-        .target(name: "TestTreeSitterLanguages", cSettings: [.unsafeFlags(["-w"])]),
-        .testTarget(name: "RunestoneTests", dependencies: ["Runestone", "TestTreeSitterLanguages"])
+        .target(name: "TestTreeSitterLanguages", cSettings: [
+            .unsafeFlags(["-w"])
+        ]),
+        .testTarget(name: "RunestoneTests", dependencies: [
+            "Runestone",
+            "TestTreeSitterLanguages"
+        ])
     ]
 )

@@ -1,29 +1,56 @@
 name: Build and Test
-
 on:
   workflow_dispatch: {}
   pull_request:
-    branches: [ main ]
-    paths:
-      - 'Sources/**'
-      - '!Sources/Runestone/Documentation.docc/**'
-      - 'Tests/**'
-
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
-    name: Build and test on iPhone 14
-    runs-on: macOS-12
+    name: Build and Test (Xcode ${{ matrix.xcode }})
+    runs-on: macos-14
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - xcode: 15.2
+            destination: iPhone 15 Pro
+            os: 17.2
+          - xcode: 14.3.1
+            destination: iPhone 14 Pro
+            os: 16.4
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer    
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+      - name: Check for changed files
+        uses: dorny/paths-filter@v3
+        id: changes
         with:
-          submodules: recursive
+          filters: |
+            src:
+              - '.github/workflows/build_and_test.yml'
+              - 'Sources/**'
+              - '!Sources/Runestone/Documentation.docc/**'
+              - 'Tests/**'
       - name: Build
+        if: steps.changes.outputs.src == 'true'
         run: |
-          xcodebuild build-for-testing -scheme Runestone -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14'
+          set -o pipefail &&\
+          xcodebuild build-for-testing\
+            -scheme Runestone\
+            -sdk iphonesimulator\
+            -destination "platform=iOS Simulator,name=${{ matrix.destination }},OS=${{ matrix.os }}"\
+          | xcbeautify --renderer github-actions
       - name: Test
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
+        if: steps.changes.outputs.src == 'true'
         run: |
-          xcodebuild test-without-building -scheme Runestone -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14'
+          set -o pipefail &&\
+          xcodebuild test-without-building\
+            -scheme Runestone\
+            -sdk iphonesimulator\
+            -destination "platform=iOS Simulator,name=${{ matrix.destination }},OS=${{ matrix.os }}"\
+          | xcbeautify --renderer github-actions
