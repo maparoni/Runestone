@@ -10,7 +10,8 @@ let package = Package(
         .iOS(.v14)
     ],
     products: [
-        .library(name: "Runestone", targets: ["Runestone"])
+        .library(name: "Runestone", targets: ["Runestone"]),
+        .library(name: "RunestoneSwiftUI", targets: ["RunestoneSwiftUI"])
     ],
     dependencies: [
         .package(url: "https://github.com/tree-sitter/tree-sitter", .upToNextMinor(from: "0.20.9"))
@@ -22,6 +23,7 @@ let package = Package(
             .copy("PrivacyInfo.xcprivacy"),
             .process("TextView/Appearance/Theme.xcassets")
         ]),
+        .target(name: "RunestoneSwiftUI", dependencies: ["Runestone"]),
         .target(name: "TestTreeSitterLanguages", cSettings: [
             .unsafeFlags(["-w"])
         ]),

@@ -72,7 +72,7 @@ public extension Theme {
     var pageGuideHairlineWidth: CGFloat {
         hairlineLength
     }
-
+  
     var markedTextBackgroundCornerRadius: CGFloat {
         0
     }
